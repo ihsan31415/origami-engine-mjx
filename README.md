@@ -1,4 +1,4 @@
-<h1 align="center">MuJoCo Origami Engine</h1>
+<h1 align="center">MuJoCo MJX Origami Engine</h1>
 
 <div align="center">
   <a href="https://github.com/ihsan31415/origami-engine/releases"><img src="https://img.shields.io/github/v/release/ihsan31415/origami-engine?display_name=tag&logo=github" alt="Latest Release"></a>
