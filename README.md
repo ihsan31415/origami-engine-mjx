@@ -1,187 +1,114 @@
-<h1 align="center">MuJoCo MJX Origami Engine</h1>
+# origami-engine-mjx
 
-<div align="center">
-  <a href="https://github.com/ihsan31415/origami-engine/releases"><img src="https://img.shields.io/github/v/release/ihsan31415/origami-engine?display_name=tag&logo=github" alt="Latest Release"></a>
-  <a href="https://github.com/ihsan31415/origami-engine/actions/workflows/ci.yml"><img src="https://github.com/ihsan31415/origami-engine/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10%20%7C%203.11-blue?logo=python&logoColor=white" alt="Python"></a>
-  <a href="https://mujoco.org/"><img src="https://img.shields.io/badge/Physics-MuJoCo-blue" alt="MuJoCo"></a>
-  <a href="https://numpy.org/"><img src="https://img.shields.io/badge/NumPy-Scientific%20Computing-013243?logo=numpy&logoColor=white" alt="NumPy"></a>
-  <a href="https://shapely.readthedocs.io/"><img src="https://img.shields.io/badge/Geometry-Shapely-3776AB" alt="Shapely"></a>
-  <br>
-  <a href="https://github.com/python/mypy"><img src="https://img.shields.io/badge/Type%20Checking-mypy-blue?logo=python&logoColor=white" alt="mypy"></a>
-  <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/badge/Code%20Style-Ruff-D7FF64?logo=ruff&logoColor=black" alt="Ruff"></a>
-  <a href="https://docs.pytest.org/"><img src="https://img.shields.io/badge/Tests-pytest-0A9EDC?logo=pytest&logoColor=white" alt="pytest"></a>
-  <a href="origami_engine/schemas/crease_pattern.schema.json"><img src="https://img.shields.io/badge/Validation-JSON%20Schema-green" alt="JSON Schema"></a>
-  <a href="https://github.com/pre-commit/pre-commit"><img src="https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white" alt="pre-commit"></a>
-  <br>
-  <a href="https://github.com/ihsan31415/origami-engine/commits/main"><img src="https://img.shields.io/github/last-commit/ihsan31415/origami-engine" alt="Last Commit"></a>
-  <a href="https://github.com/ihsan31415/origami-engine/issues"><img src="https://img.shields.io/github/issues/ihsan31415/origami-engine" alt="Issues"></a>
-  <a href="https://github.com/ihsan31415/origami-engine/stargazers"><img src="https://img.shields.io/github/stars/ihsan31415/origami-engine" alt="Stars"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/ihsan31415/origami-engine" alt="License"></a>
-</div>
+Dual-backend **MuJoCo MJX** origami folding simulator — a migration of `origami-engine` from the classic MuJoCo C++ runtime to MJX, with two interchangeable backends in one package:
 
-<br><br>
+| Backend | Flag | Engine | Hardware | Best for |
+|---|---|---|---|---|
+| **MJX-JAX** | `backend="jax"` | `mujoco.mjx` on JAX/XLA | CPU (local dev), NVIDIA GPU, TPU (Colab) | Differentiable simulation, `jax.jit` / `jax.vmap` / `jax.lax.scan`, CPU testing |
+| **MJX-Warp** | `backend="warp"` | `mujoco.warp` on NVIDIA Warp | NVIDIA CUDA GPU only (Colab T4) | High-throughput batched population evaluation |
 
-This project is a Python-based origami folding simulator built around MuJoCo. It reconstructs a crease pattern from 2D line segments, validates the paper topology, generates a MuJoCo model for the folded sheet, applies fold-angle targets, and optionally vibrates the support table to simulate a realistic folding environment. The code is structured as an engineering pipeline rather than a pure toy 
+The crease-pattern parsing, geometry reconstruction, and MJCF model generation are **shared** between backends — only the simulation execution differs.
 
-example: crease patterns are normalized into a canonical format, polygon faces are built from the sheet layout, MuJoCo XML is generated from the resulting pattern, and the net displacement of the paper is measured as a forward-folding fitness signal.
+## Install
 
-## What this project does
-- Builds a crease network from `p1`, `p2`, and `angle` data
-- Verifies that the crease graph tiles the square sheet without invalid sliver faces
-- Creates a MuJoCo model from the pattern geometry and hinge constraints
-- Drives fold actuators toward target fold angles during simulation
-- Applies a small support-table vibration for dynamic motion
-- Measures the forward displacement of the paper centroid
-- Exports the rendered motion to video for inspection
+```bash
+# Core (geometry, patterns, XML generation — no GPU needed)
+pip install origami-engine-mjx
 
-## Simulation Output
+# + MJX-JAX backend (CPU works out of the box)
+pip install 'origami-engine-mjx[jax]'
 
-Below is the physical rendering of the simulation output, demonstrating how the paper layout reacts to active hinge joint torques and support table vibrations:
+# + MJX-Warp backend (requires NVIDIA CUDA GPU)
+pip install 'origami-engine-mjx[warp]'
 
-<!-- Image left + description right referencing JSON -->
-<table>
-  <tr>
-    <td style="vertical-align: top; padding-right: 20px;">
-      <p align="center">
-        <img src="docs/crease_pattern_plot.png" alt="Reference crease pattern" width="300" style="border:1px solid #d0d0d0; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.08);" />
-      </p>
-      <p align="center"><sub>24 creases | 16 faces | 9 loop edges</sub></p>
-    </td>
-    <td>
-      <strong>Reference Crease Pattern</strong><br>
-      This table shows the default Miura-ori crease pattern used in simulations. The pattern consists of 24 creases that tile a square sheet, forming 16 polygonal faces with 9 loop edges. <br><br>
-      <a href="origami_engine/schemas/crease_pattern.schema.json"><strong>Crease Pattern JSON Schema</strong></a> — validates the structure of crease input files (angle units, point coordinates, mountain/valley signs).<br>
-      <a href="crease_patterns/reference_miura_4x4.json"><strong>reference_miura_4x4.json</strong></a> — the actual crease pattern data in JSON format, containing the p1, p2, and angle values for each of the 24 creases.<br><br>
-      <em>Mountain folds are negative angles (creasing "up"), Valley folds are positive angles (creasing "down").</em>
-    </td>
-  </tr>
-</table>
-
-<!-- Video table (eyecatching) -->
-<table>
-  <tr>
-    <th>Vibrating Table: Amplitude & Frequency</th>
-    <th>Fold Crease</th>
-    <th>Video Preview</th>
-  </tr>
-  <tr>
-    <td><strong>Lower</strong> amplitude & frequency</td>
-    <td>Partial / standard</td>
-    <td>
-      <video src="https://github.com/user-attachments/assets/15ff98b3-7a72-46c2-9303-e106c88bc71a"
-             width="280" controls muted playsinline></video>
-    </td>
-  </tr>
-  <tr>
-    <td><strong>High</strong> amplitude & frequency</td>
-    <td>Full</td>
-    <td>
-      <video src="https://github.com/user-attachments/assets/ef7d9808-d0a5-4c6b-b33c-2c6a81e11003"
-             width="280" controls muted playsinline></video>
-    </td>
-  </tr>
-  <tr>
-    <td><strong>Higher</strong> amplitude & frequency</td>
-    <td>Full</td>
-    <td>
-      <video src="https://github.com/user-attachments/assets/438714c1-f831-43cb-a729-027816fb3ea5"
-             width="280" controls muted playsinline></video>
-    </td>
-  </tr>
-</table>
-
-*This repository is structured as a **library** for crease pattern simulation and analysis. For full documentation, see the dedicated files below.*
+# Everything
+pip install 'origami-engine-mjx[all]'
+```
 
 ## Quick start
 
-### Install from PyPI
+```python
+from origami_engine_mjx import OrigamiEngine, load_default_creases
 
-```bash
-# uv
-uv pip install origami-engine
+# CPU (local dev) — MJX-JAX
+engine = OrigamiEngine(backend="jax")
+creases = load_default_creases()
 
-# pip
-pip install origami-engine
+# Single simulation -> forward displacement (m)
+score = engine.evaluate(creases, duration=2.0)
+print(f"forward displacement: {score:.4f} m")
+
+# Batch population evaluation
+population = [creases, creases, creases]   # replace with your genomes
+result = engine.evaluate_population(population, duration=2.0)
+print(result.scores)
 ```
 
-### Install from source
+On Google Colab with an NVIDIA T4:
 
-```bash
-git clone https://github.com/ihsan31415/origami-engine.git
-cd origami-engine
-
-# uv
-uv venv && source .venv/bin/activate
-uv pip install -e ".[dev]"
-
-# pip
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+```python
+engine = OrigamiEngine(backend="warp")   # CUDA GPU via MuJoCo Warp
+result = engine.evaluate_population(population, duration=8.0, batch_size=128)
 ```
 
-### Validate (source installation)
+`backend="auto"` picks `warp` if a CUDA GPU is available, otherwise `jax`.
 
-```bash
-python -m pytest -q tests
-python origami_engine/render_individual.py
+## Architecture
+
+```
+origami_engine_mjx/
+├── __init__.py            # public API: OrigamiEngine, Crease, build_pattern, ...
+├── constants.py           # physical / solver constants (shared)
+├── types.py               # Crease, Pattern, SimulationResult, PopulationResult
+├── geometry.py            # crease graph -> faces -> spanning tree (shared, Shapely)
+├── model.py               # generate_xml(): Pattern -> MJCF XML (shared, no MuJoCo needed)
+├── serialization.py       # JSON crease I/O (shared)
+├── patterns.py            # reference Miura patterns (shared)
+├── plotting.py            # crease-pattern plots (shared)
+├── backend.py             # lazy import guards for mujoco / mjx-jax / mjx-warp
+├── engine.py              # OrigamiEngine — public facade, backend selection
+├── evaluation.py          # evaluate_individual / evaluate_population
+├── backends/
+│   ├── base.py            # SimulationBackend ABC
+│   ├── __init__.py        # registry + get_backend(name)
+│   ├── jax_backend.py     # MJX-JAX: put_model / make_data / mjx.step, jit option
+│   └── warp_backend.py    # MJX-Warp: mjw.make_model / make_data / mjw.step (GPU)
+├── schemas/               # JSON schema for crease files
+└── crease_patterns/       # reference_miura_4x4.json
 ```
 
-*For detailed installation steps, environment management, and usage tutorials, see [GETTING_STARTED.md](docs/GETTING_STARTED.md).*
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details, [docs/BACKENDS.md](docs/BACKENDS.md) for a backend comparison, and [docs/COLAB_GPU.md](docs/COLAB_GPU.md) for GPU validation.
 
-## 📖 Documentation
+## Performance notes
 
-For in-depth information, see the dedicated documentation files:
+- **MJX-JAX on CPU is slow for mesh-contact models**: the 16-face reference Miura model costs ~70 s/step on CPU (mesh–mesh collision in XLA). Tiny models run at ~1.4 s/step. Use CPU only for correctness tests with short durations; use GPU for real workloads.
+- **JIT compilation of `mjx.step` is expensive** for this model; the JAX backend runs eager by default (`jit=False`).
+- On a Colab T4 GPU, both backends should be dramatically faster — see `examples/colab_gpu_validation.py` and benchmark in `docs/COLAB_GPU.md`.
 
-- **[GETTING_STARTED.md](docs/GETTING_STARTED.md)** — every install method (pip, uv, source, no-venv), quick start, first simulation
-- **[TUTORIALS.md](docs/TUTORIALS.md)** — step-by-step recipes: inspect a pattern, score it, JSON round-trip, populations, plotting, rendering
-- **[API_REFERENCE.md](docs/API_REFERENCE.md)** — full public API signatures, domain types, and constants
-- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** — module overview, data flow, and design decisions
-- **[CREASE_FORMAT.md](docs/CREASE_FORMAT.md)** — crease semantics and the JSON input format (validated against the JSON Schema)
-- **[SIMULATION.md](docs/SIMULATION.md)** — MuJoCo XML model structure, the step loop, rendering, and the `origami-render` CLI
-- **[EVALUATION.md](docs/EVALUATION.md)** — fitness semantics and sequential/parallel population evaluation
-- **[TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** — install, headless, pattern-validity, and simulation-stability issues
-- **[GLOSSARY.md](docs/GLOSSARY.md)** — domain terminology
-- **[CONTRIBUTING.md](docs/CONTRIBUTING.md)** — dev setup, checks, and the PR process
-- `examples/` — **[README.md](examples/README.md)**: what each runnable example script does
-- `experiments/` — **[TIMELINE.md](experiments/TIMELINE.md)**: the archived prototyping notebooks and how they map to the engine
+## Examples
 
-*All documentation lives in [`docs/`](docs).*
+| Script | Demonstrates |
+|---|---|
+| `examples/01_evaluate_cpu_jax.py` | Single sim + population on CPU (MJX-JAX) |
+| `examples/02_evaluate_warp_gpu.py` | MJX-Warp on NVIDIA GPU |
+| `examples/03_batch_population.py` | Batch population evaluation with configurable batch size |
+| `examples/colab_gpu_validation.py` | Full GPU validation + benchmark script for Colab T4 |
 
-*The README provides a brief overview and the simulation output (the eyecatching feature). All technical content is available in the dedicated documentation files.*
-
-## Core modules (brief)
-
-- `origami_engine/constants.py` — shared physical/solver constants
-- `origami_engine/types.py` — `Crease`, `Pattern`, `SimulationResult` domain types
-- `origami_engine/geometry.py` — crease graph / face reconstruction (`build_pattern`)
-- `origami_engine/model.py` — MuJoCo XML generation (`generate_xml`)
-- `origami_engine/dynamics.py` — simulation loop, table vibration, centroids
-- `origami_engine/evaluation.py` — fitness APIs (`evaluate_individual`, `evaluate_population`)
-- `origami_engine/patterns.py` — reusable reference crease patterns
-- `origami_engine/render_individual.py` — render to MP4/video report
-- `origami_engine/example.py` — minimal evaluation workflow
-
-## Library API
+## Tests
 
 ```bash
-pip install -e ".[dev]"
-
-python -c "
-from origami_engine import (
-    CREASE_SCHEMA,
-    Crease,
-    build_pattern,
-    evaluate_individual,
-    evaluate_population,
-    load_creases_from_json,
-    normalize_creases,
-    reference_miura_legacy_creases,
-    save_creases_to_json,
-    run_simulation,
-    paper_centroid,
-)
-"
+pip install -e '.[dev,jax]'
+pytest tests_mjx -q              # fast tests (no long sims)
+pytest tests_mjx -q -m slow      # includes short MJX-CPU simulations
 ```
 
-*For the complete API reference, see [API_REFERENCE.md](docs/API_REFERENCE.md).*
+## Docs
+
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — package layout, data flow, backend responsibilities
+- [docs/BACKENDS.md](docs/BACKENDS.md) — MJX-JAX vs MJX-Warp: semantics, features, limitations
+- [docs/COLAB_GPU.md](docs/COLAB_GPU.md) — Colab T4 setup, validation checklist, benchmarking
+- [docs/MIGRATION.md](docs/MIGRATION.md) — migrating from `origami-engine` (classic MuJoCo)
+
+## License
+
+Apache-2.0
