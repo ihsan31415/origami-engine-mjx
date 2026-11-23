@@ -11,7 +11,7 @@ from typing import Any
 
 import numpy as np
 
-from ..types import Pattern, SimulationResult
+from ..types import SimulationResult
 
 
 class SimulationBackend(ABC):

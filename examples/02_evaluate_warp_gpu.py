@@ -19,7 +19,7 @@ from origami_engine_mjx import OrigamiEngine, load_default_creases
 
 
 def main():
-    engine = OrigamiEngine(backend="warp")   # raises RuntimeError without CUDA
+    engine = OrigamiEngine(backend="warp")  # raises RuntimeError without CUDA
     print(f"backend: {engine.backend_name}  device: {engine.device_info()}")
 
     creases = load_default_creases()

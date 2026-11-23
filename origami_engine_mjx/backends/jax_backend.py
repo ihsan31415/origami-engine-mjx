@@ -60,8 +60,7 @@ class JaxBackend(SimulationBackend):
         """
         if mjx is None:
             raise RuntimeError(
-                "MJX-JAX backend requires 'mujoco-mjx' and 'jax'. "
-                "Install with: pip install 'origami-engine-mjx[jax]'"
+                "MJX-JAX backend requires 'mujoco-mjx' and 'jax'. Install with: pip install 'origami-engine-mjx[jax]'"
             ) from _IMPORT_ERROR
         classic = MjModel.from_xml_string(xml)
         mjx_model = mjx.put_model(classic)
@@ -103,9 +102,7 @@ class JaxBackend(SimulationBackend):
         data = self.make_state(bundle)
 
         # Resolve joint addresses from the classic model for bookkeeping.
-        hinge_adr = np.array(
-            [classic.joint(h["name"]).qposadr[0] for h in info["hinges"]], dtype=int
-        )
+        hinge_adr = np.array([classic.joint(h["name"]).qposadr[0] for h in info["hinges"]], dtype=int)
         table_x_qadr = int(classic.joint("table_x").qposadr[0])
         table_x_dadr = int(classic.joint("table_x").dofadr[0])
         table_z_qadr = int(classic.joint("table_z").qposadr[0])
@@ -128,7 +125,7 @@ class JaxBackend(SimulationBackend):
         # prohibitively slow).  Set jit=True to JIT-compile the step function
         # (useful for long steady-state runs after warm-up, or on GPU).
         timestep = float(classic.opt.timestep)
-        n_steps = int(round(duration / timestep))
+        n_steps = round(duration / timestep)
 
         def step_fn(d, t_scalar):
             frac = jnp.minimum(t_scalar / fold_duration, 1.0)
@@ -201,7 +198,7 @@ class JaxBackend(SimulationBackend):
                 )
                 delta = result.final_centroid - result.initial_centroid
                 scores.append(float(delta[0]))  # forward along +x
-            except Exception:
+            except Exception:  # noqa: BLE001 - one bad individual must not kill the batch
                 scores.append(float("nan"))
         return np.asarray(scores, dtype=float)
 

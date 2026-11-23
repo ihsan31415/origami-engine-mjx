@@ -70,18 +70,20 @@ def main():
             t0 = time.time()
             r = eng.evaluate_population(pop, duration=0.005, fold_duration=0.002, vibrate=False)
             dt = time.time() - t0
-            print(f"  {backend:5s}  n={n:4d}  {dt:6.1f}s  {n / dt:8.2f} ind/s  "
-                  f"score[0]={r.scores[0]:.6f}", flush=True)
+            print(f"  {backend:5s}  n={n:4d}  {dt:6.1f}s  {n / dt:8.2f} ind/s  score[0]={r.scores[0]:.6f}", flush=True)
 
     section("4. GPU memory")
     try:
         stats = jax.devices()[0].memory_stats()
         print("jax gpu memory_stats:", stats)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - diagnostics only, never fatal
         print("memory stats unavailable:", e)
     import subprocess
 
-    subprocess.run(["nvidia-smi", "--query-gpu=memory.used,memory.total", "--format=csv"])
+    subprocess.run(
+        ["nvidia-smi", "--query-gpu=memory.used,memory.total", "--format=csv"],
+        check=False,
+    )
 
     section("DONE — record these numbers; do not claim them without this run.")
 

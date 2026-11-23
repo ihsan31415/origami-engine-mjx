@@ -23,7 +23,7 @@ def available_backends() -> list[str]:
         try:
             if cls().is_available():
                 result.append(name)
-        except Exception:
+        except Exception:  # noqa: BLE001, S110 - availability probe must never raise
             pass
     return result
 
@@ -45,9 +45,7 @@ def get_backend(name: str) -> SimulationBackend:
         If the backend's optional dependencies are not installed.
     """
     if name not in _REGISTRY:
-        raise ValueError(
-            f"unknown backend {name!r}; expected one of {sorted(_REGISTRY)}"
-        )
+        raise ValueError(f"unknown backend {name!r}; expected one of {sorted(_REGISTRY)}")
     cls = _REGISTRY[name]
     instance = cls()
     if not instance.is_available():

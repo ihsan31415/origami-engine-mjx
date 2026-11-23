@@ -35,9 +35,7 @@ except Exception as exc:  # noqa: BLE001
 
 def require_mjx_jax(message: str = "MJX-JAX backend requires 'mujoco-mjx' and 'jax'."):
     if mjx_jax is None:
-        raise RuntimeError(
-            message + "  Install with: pip install 'origami-engine-mjx[jax]'"
-        ) from MJX_JAX_IMPORT_ERROR
+        raise RuntimeError(message + "  Install with: pip install 'origami-engine-mjx[jax]'") from MJX_JAX_IMPORT_ERROR
     return mjx_jax
 
 
@@ -59,13 +57,13 @@ def require_mjx_warp(message: str = "MJX-Warp backend requires 'mujoco-warp' and
 
 
 __all__ = [
-    "MUJOCO_IMPORT_ERROR",
-    "mujoco",
-    "require_mujoco",
     "MJX_JAX_IMPORT_ERROR",
-    "mjx_jax",
-    "require_mjx_jax",
     "MJX_WARP_IMPORT_ERROR",
+    "MUJOCO_IMPORT_ERROR",
+    "mjx_jax",
     "mjx_warp",
+    "mujoco",
+    "require_mjx_jax",
     "require_mjx_warp",
+    "require_mujoco",
 ]

@@ -1,6 +1,5 @@
 """Tests for shared (backend-independent) functionality."""
 
-import numpy as np
 import pytest
 
 from origami_engine_mjx import (

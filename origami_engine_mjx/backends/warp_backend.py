@@ -28,8 +28,8 @@ _IMPORT_ERROR: BaseException | None = None
 
 try:
     import mujoco
-    from mujoco import MjModel
     import mujoco.warp as mjw
+    from mujoco import MjModel
 except Exception as exc:  # noqa: BLE001
     _IMPORT_ERROR = exc
 
@@ -47,7 +47,7 @@ class WarpBackend(SimulationBackend):
             import warp as wp
 
             return wp.get_device().is_cuda
-        except Exception:
+        except Exception:  # noqa: BLE001 - no CUDA device means backend unavailable
             return False
 
     def device_info(self) -> str:
@@ -58,7 +58,7 @@ class WarpBackend(SimulationBackend):
 
             dev = wp.get_device()
             return f"warp device={dev}, cuda={dev.is_cuda}"
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - diagnostics only
             return f"warp not available: {exc}"
 
     # ------------------------------------------------------------------
@@ -112,9 +112,7 @@ class WarpBackend(SimulationBackend):
 
         data = self.make_state(bundle)
 
-        hinge_adr = np.array(
-            [classic.joint(h["name"]).qposadr[0] for h in info["hinges"]], dtype=int
-        )
+        hinge_adr = np.array([classic.joint(h["name"]).qposadr[0] for h in info["hinges"]], dtype=int)
         table_x_qadr = int(classic.joint("table_x").qposadr[0])
         table_x_dadr = int(classic.joint("table_x").dofadr[0])
         table_z_qadr = int(classic.joint("table_z").qposadr[0])
@@ -132,7 +130,7 @@ class WarpBackend(SimulationBackend):
         initial_centroid = self._centroid_from_data(data, paper_mask)
 
         timestep = float(classic.opt.timestep)
-        n_steps = int(round(duration / timestep))
+        n_steps = round(duration / timestep)
 
         for step_i in range(n_steps):
             t = step_i * timestep
@@ -196,7 +194,7 @@ class WarpBackend(SimulationBackend):
                 )
                 delta = result.final_centroid - result.initial_centroid
                 scores.append(float(delta[0]))
-            except Exception:
+            except Exception:  # noqa: BLE001 - one bad individual must not kill the batch
                 scores.append(float("nan"))
         return np.asarray(scores, dtype=float)
 

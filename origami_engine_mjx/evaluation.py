@@ -10,7 +10,7 @@ import numpy as np
 
 from .constants import VIB_AMP_X, VIB_AMP_Z, VIB_FREQ
 from .engine import OrigamiEngine, compute_forward_displacement
-from .types import BackendName, PopulationResult, SimulationResult
+from .types import BackendName, PopulationResult
 
 
 def evaluate_individual(

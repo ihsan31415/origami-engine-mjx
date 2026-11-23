@@ -11,14 +11,13 @@ Usage
 >>> scores = engine.evaluate_population(population, duration=2.0)
 """
 
-from typing import Any, Literal
+from typing import Literal
 
 import numpy as np
 
 from .backends import available_backends, get_backend
 from .backends.base import SimulationBackend
 from .constants import VIB_AMP_X, VIB_AMP_Z, VIB_FREQ
-from .serialization import normalize_creases
 from .types import BackendName, PopulationResult, SimulationResult
 
 BackendChoice = Literal["jax", "warp", "auto"]
