@@ -102,6 +102,41 @@ def test_make_params_requires_hinge_crease_map(tiny_space):
         make_params(tiny_space, classic, info)
 
 
+def test_make_params_requires_hinge_sign_map(tiny_space):
+    """``info`` without the per-hinge sign map is rejected, not assumed +1."""
+    _, classic, info = build_jax_model(tiny_space.decode(np.zeros(tiny_space.dim)))
+    info.pop("hinge_signs")
+    with pytest.raises(ValueError):
+        make_params(tiny_space, classic, info)
+
+
+def test_ctrl_sign_matches_generate_xml_sign():
+    """The env's per-hinge sign must match the sign ``generate_xml`` folds in.
+
+    Regression for a sign bug: ``generate_xml`` drives hinge ``h`` with
+    ``sign_h * angle``; ignoring ``sign_h`` folds those hinges (any with sign
+    ``-1``) the wrong way relative to :class:`OrigamiEngine`.
+    """
+    from origami_engine_mjx.geometry import build_pattern
+    from origami_engine_mjx.model import generate_xml
+    from origami_engine_mjx.serialization import normalize_creases
+
+    creases = [
+        Crease((0.0, 1.0 / 3), (1.0, 1.0 / 3), -0.3),
+        Crease((0.0, 2.0 / 3), (1.0, 2.0 / 3), 0.4),
+    ]
+    space = SearchSpace.from_creases(creases)
+    _, classic, info = build_jax_model(space.decode(np.zeros(space.dim)))
+    params = make_params(space, classic, info)
+
+    # Independent reference: with nonzero angles, target == sign * angle.
+    cre = normalize_creases(space.decode(np.full(space.dim, 0.3)))
+    _, ref = generate_xml(build_pattern(cre), cre)
+    ref_sign = np.sign(np.asarray(ref["targets"]))
+    assert np.any(ref_sign < 0)  # the pattern genuinely has a negative hinge sign
+    assert np.array_equal(np.asarray(params.ctrl_sign), ref_sign)
+
+
 @pytest.mark.slow
 def test_step_ctrl_uses_search_space_order():
     """End-to-end: the control sent to the model is permuted into genome order.
@@ -122,7 +157,8 @@ def test_step_ctrl_uses_search_space_order():
     action = np.array([1.0, -1.0], dtype=np.float32)
     state, _, _, _ = jax_env.step(model, state, params, jnp.asarray(action))
     angles = space.from_normalized(action)
-    assert np.allclose(np.asarray(state.data.ctrl), angles[np.asarray(params.ctrl_perm)])
+    expected = np.asarray(params.ctrl_sign) * angles[np.asarray(params.ctrl_perm)]
+    assert np.allclose(np.asarray(state.data.ctrl), expected)
 
 
 @pytest.mark.slow

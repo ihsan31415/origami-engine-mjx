@@ -31,7 +31,12 @@ from ..constants import VIB_AMP_X, VIB_AMP_Z, VIB_FREQ
 from ..geometry import build_pattern
 from ..model import generate_xml
 from ..serialization import normalize_creases
+from ..types import Crease
 from .search_space import SearchSpace
+
+#: Nonzero probe angle used to recover the per-hinge sign from ``generate_xml``
+#: (``target = sign * angle``; the sign is a pure function of the geometry).
+_SIGN_PROBE = 0.1
 
 __all__ = [
     "EnvParams",
@@ -92,11 +97,15 @@ class EnvParams(NamedTuple):
     ``hinge_adr`` is ordered to match the search space's genome (one entry per
     ``space.active_indices``); ``ctrl_perm`` reindexes a genome-ordered angle
     vector into the model's actuator order (the model emits hinges in a
-    depth-first traversal, which is generally *not* sorted crease order).
+    depth-first traversal, which is generally *not* sorted crease order), and
+    ``ctrl_sign`` carries the per-hinge sign that :func:`build_jax_model`
+    recovers, so a crease angle maps to the same joint target as
+    :class:`~origami_engine_mjx.engine.OrigamiEngine`.
     """
 
     hinge_adr: Any
     ctrl_perm: Any
+    ctrl_sign: Any
     table_x_qadr: Any
     table_x_dadr: Any
     table_z_qadr: Any
@@ -122,6 +131,12 @@ def build_jax_model(creases, coll_thick: float | None = None):
     tuple
         ``(mjx_model, classic_model, info)``.  ``classic_model`` is the classic
         :class:`mujoco.MjModel` used for name → address lookups.
+
+    The returned ``info`` also carries ``hinge_creases`` (the crease index each
+    model hinge drives) and ``hinge_signs`` (the per-hinge sign that
+    :func:`origami_engine_mjx.model.generate_xml` folds into the joint target,
+    ``target = sign * angle``).  The environments use both to map a crease-angle
+    action onto the model's actuators.
     """
     _require_jax()
     from ..backends.jax_backend import JaxBackend
@@ -135,6 +150,13 @@ def build_jax_model(creases, coll_thick: float | None = None):
     # hinge (depth-first) order.  ``make_params`` uses this to align the search
     # space's genome order with the model's actuator order.
     info["hinge_creases"] = [int(pat.edges[h["edge"]]["crease"]) for h in info["hinges"]]
+    # Recover the per-hinge sign with a nonzero probe: ``target = sign * angle``
+    # and the sign is purely geometric, so ``sign(target)`` is the sign for any
+    # positive probe.  The model geometry/axes do not depend on the angles, so
+    # this second pass is only used for the sign metadata.
+    probe = [Crease(c.p1, c.p2, _SIGN_PROBE) for c in normalized]
+    _, probe_info = generate_xml(pat, probe, coll_thick=coll_thick)
+    info["hinge_signs"] = [int(np.sign(t)) for t in probe_info["targets"]]
     bundle = JaxBackend().build_model(xml, info)
     return bundle["mjx_model"], bundle["classic_model"], info
 
@@ -156,9 +178,10 @@ def make_params(
     ``frame_skip`` physics steps are run per :func:`step` call.
 
     ``info`` must be the dict returned by :func:`build_jax_model` (it carries the
-    hinge→crease map).  The genome order (sorted crease indices) is aligned with
-    the model's actuator order here, so action entry ``j`` drives the hinge of
-    crease ``space.active_indices[j]``.
+    hinge→crease map and per-hinge sign).  The genome order (sorted crease
+    indices) is aligned with the model's actuator order here, so action entry
+    ``j`` drives the hinge of crease ``space.active_indices[j]`` — and with the
+    same sign that :class:`~origami_engine_mjx.engine.OrigamiEngine` uses.
 
     Raises
     ------
@@ -189,6 +212,15 @@ def make_params(
         )
     # ctrl_perm[h] = genome index whose angle drives model hinge h.
     ctrl_perm = np.asarray([crease_to_j[int(c)] for c in hinge_creases], dtype=np.int32)
+    # Per-hinge sign (model order): ``generate_xml`` drives each joint with
+    # ``sign * angle``, so applying the raw crease angle without it folds the
+    # hinge the wrong way relative to OrigamiEngine.
+    hinge_signs = info.get("hinge_signs")
+    if hinge_signs is None:
+        raise ValueError("info is missing 'hinge_signs'; pass the dict returned by build_jax_model()")
+    ctrl_sign = np.asarray(hinge_signs, dtype=np.float32)
+    if ctrl_sign.shape != hinge_adr.shape:
+        raise ValueError("model hinge signs do not match the number of actuated hinges")
     # Reorder hinge addresses to genome order: hinge_adr[j] is the qpos of
     # the hinge driven by genome entry j.
     space_to_model_h = np.empty(hinge_adr.size, dtype=np.int32)
@@ -201,6 +233,7 @@ def make_params(
     return EnvParams(
         hinge_adr=jnp.asarray(hinge_adr),
         ctrl_perm=jnp.asarray(ctrl_perm),
+        ctrl_sign=jnp.asarray(ctrl_sign),
         table_x_qadr=jnp.asarray(int(classic_model.joint("table_x").qposadr[0]), dtype=jnp.int32),
         table_x_dadr=jnp.asarray(int(classic_model.joint("table_x").dofadr[0]), dtype=jnp.int32),
         table_z_qadr=jnp.asarray(int(classic_model.joint("table_z").qposadr[0]), dtype=jnp.int32),
@@ -247,7 +280,9 @@ def reset(key, model, params: EnvParams) -> EnvState:
     del key  # deterministic reset
     data = mjx.make_data(model)
     data = data.replace(qpos=data.qpos.at[params.hinge_adr].set(0.0))
-    data = data.replace(ctrl=params.initial_targets)
+    # Same genome -> model actuator mapping as ``step`` (a no-op while the
+    # initial targets are zero, but keeps an overridden value consistent).
+    data = data.replace(ctrl=params.ctrl_sign * params.initial_targets[params.ctrl_perm])
     initial_centroid = _centroid(data, params.paper_mask)
     return EnvState(
         data=data,
@@ -276,7 +311,7 @@ def step(model, state: EnvState, params: EnvParams, action):
     """
     _require_jax()
     angles = _action_to_angles(action, params)
-    ctrl = angles[params.ctrl_perm]  # genome order -> model actuator order
+    ctrl = params.ctrl_sign * angles[params.ctrl_perm]  # genome order -> model actuator order + sign
 
     def body(k, data):
         t = (state.step_count * params.frame_skip + k).astype(jnp.float32) * params.dt
