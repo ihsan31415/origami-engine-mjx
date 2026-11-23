@@ -17,7 +17,7 @@ make examples
 
 | Script | What it demonstrates | Key APIs | Output |
 |---|---|---|---|
-| [`01_evaluate_cpu_jax.py`](01_evaluate_cpu_jax.py) | Single simulation + population evaluation on CPU using MJX-JAX | `OrigamiEngine, evaluate_individual, evaluate_population` | Prints forward displacement (m) and optionally scores |
+| [`01_evaluate_cpu_jax.py`](01_evaluate_cpu_jax.py) | Single simulation + population evaluation on CPU using MJX-JAX | `OrigamiEngine` (`evaluate`, `evaluate_population`) | Prints forward displacement (m) and optionally scores |
 | [`02_evaluate_warp_gpu.py`](02_evaluate_warp_gpu.py) | MJX-Warp single simulation on NVIDIA GPU | `OrigamiEngine, load_default_creases` | Prints forward displacement (warp/GPU) |
 | [`03_batch_population.py`](03_batch_population.py) | Batched population evaluation with configurable batch size | `OrigamiEngine, evaluate_population` | One score per individual |
 | [`04_optimize_es.py`](04_optimize_es.py) | Black-box optimization over the fold-angle search space with `nevergrad` (falls back to random search) | `SearchSpace, OrigamiEvaluator, to_nevergrad_function` | Best genome, objective, raw displacement |

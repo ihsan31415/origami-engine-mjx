@@ -40,7 +40,7 @@ The package is available from PyPI. Choose the installation that matches your ne
 | Core (geometry, patterns, XML generation — no GPU needed) | `pip install origami-engine-mjx` |
 | + MJX-JAX backend (CPU works out of the box) | `pip install 'origami-engine-mjx[jax]'` |
 | + MJX-Warp backend (requires NVIDIA CUDA GPU) | `pip install 'origami-engine-mjx[warp]'` |
-| Everything (JAX + Warp + dev tooling) | `pip install 'origami-engine-mjx[all]'` |
+| Everything (JAX + Warp + optimizer/RL extras + dev tooling) | `pip install 'origami-engine-mjx[all]'` |
 
 This package ships **no** video renderer; see [MIGRATION.md](MIGRATION.md#origami-render-and-video-rendering) for the rendering options.
 
