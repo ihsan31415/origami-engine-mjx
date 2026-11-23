@@ -1,8 +1,9 @@
 """Tests for the configurable design space (Task A) and its integrations (Task C).
 
-Everything here is fast: it exercises the geometry/encoding substrate and the
+The default suite is fast: it exercises the geometry/encoding substrate and the
 evaluator's bucketing logic with a stub engine, so no simulation runs.  The one
-test that needs JAX is guarded with ``requires_jax``.
+simulation-backed test is marked ``slow`` (run with ``-m slow``) and guarded by
+``requires_jax`` so the optional-dependency CI still passes.
 """
 
 import json
@@ -440,3 +441,49 @@ def test_as_rl_space_converts_angle_only_design_space():
 def test_as_rl_space_rejects_geometry_design_space():
     with pytest.raises(ValueError):
         _as_rl_space(DesignSpace.angles_and_geometry())
+
+
+# ----------------------------------------------------------------------
+# Simulation-backed (slow): the real engine, not the stub
+# ----------------------------------------------------------------------
+
+
+def _module_available(name: str) -> bool:
+    import importlib.util
+
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError):  # pragma: no cover - defensive
+        return False
+
+
+#: Skip guard for tests that build a JAX-backed engine (needs the ``[jax]`` extra).
+requires_jax = pytest.mark.skipif(
+    not (_module_available("jax") and _module_available("mujoco.mjx")),
+    reason="requires the [jax] extra (mujoco-mjx + jax)",
+)
+
+
+@pytest.mark.slow
+@requires_jax
+def test_real_engine_mixed_topology_scores_match_one_by_one():
+    """With the real MJX backend a bucketed batch equals one-by-one scoring."""
+    from origami_engine_mjx import Crease
+
+    angle = -0.7853981633974483
+    tiny = [Crease((0.2, 0.0), (0.5, 0.5), angle), Crease((0.5, 0.5), (0.8, 0.0), angle)]
+    space = DesignSpace.angles_and_geometry(tiny, geometry_mode="vertex")
+    ev = OrigamiEvaluator(space, backend="jax", duration=0.003, fold_duration=0.002, vibrate=False)
+
+    X = np.tile(space.base_vector(), (3, 1))
+    X[1, 0] += 0.1  # angle-only change: same endpoints -> same topology
+    coord = space.select(group="geometry")[0]
+    X[2, coord] += 0.1  # move the shared vertex -> a second topology
+
+    assert len({topology_signature(space.decode(X[i])) for i in range(3)}) == 2
+    batch = ev.evaluate_batch(X, return_details=False)
+    assert sorted(batch.paths) == ["bucketed", "bucketed", "single"]
+    assert all(s == "ok" for s in batch.status)
+
+    singles = np.asarray([ev.evaluate(X[i]).fitness for i in range(3)], dtype=float)
+    assert np.allclose(np.asarray(batch.fitness, dtype=float), singles)
