@@ -1,6 +1,6 @@
 # Tutorials
 
-> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · **Tutorials** · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Contributing](CONTRIBUTING.md)
+> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · **Tutorials** · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
 
 Step-by-step recipes that build on each other. Every snippet assumes the package is installed (see [GETTING_STARTED.md](GETTING_STARTED.md)).
 
@@ -207,4 +207,6 @@ The XML structure (bodies, hinges, equality constraints, actuators, table) is do
 - [SIMULATION.md](SIMULATION.md) — model generation, stepping loop
 - [EVALUATION.md](EVALUATION.md) — fitness functions in depth
 - [API_REFERENCE.md](API_REFERENCE.md) — every public function signature
+- [OPTIMIZATION_ES.md](OPTIMIZATION_ES.md) — driving the simulation from an external optimizer
+- [RL.md](RL.md) — Gymnasium and JAX-functional reinforcement-learning environments
 - [examples/README.md](../examples/README.md) — runnable scripts (in `examples/`)

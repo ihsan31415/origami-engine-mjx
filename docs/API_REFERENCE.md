@@ -1,8 +1,8 @@
 # API Reference
 
-> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · **API Reference** · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Contributing](CONTRIBUTING.md)
+> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · **API Reference** · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
 
-Complete reference for the public API of `origami_engine_mjx` (version `0.1.0`). Sections follow the **Core modules** order in the [README](../README.md#core-modules-brief). Every name below is verified against the installed package.
+Complete reference for the public API of `origami_engine_mjx` (version `1.0.0`). Sections follow the **Core modules** order in the [README](../README.md#core-modules-brief). Every name below is verified against the installed package.
 
 ```python
 from origami_engine_mjx import (
@@ -472,7 +472,7 @@ print(f"forward displacement: {score:.6f} m  (backend={result.backend})")
 ## See also
 
 - [GETTING_STARTED.md](GETTING_STARTED.md) — installation (pip / uv / source) and first run
-- [TUTORIALS.md](TUTORIALS.md) — nine step-by-step recipes
+- [TUTORIALS.md](TUTORIALS.md) — eight step-by-step recipes
 - [CREASE_FORMAT.md](CREASE_FORMAT.md) — crease & JSON schema reference
 - [SIMULATION.md](SIMULATION.md) — XML model structure and stepping loop
 - [EVALUATION.md](EVALUATION.md) — fitness functions, population evaluation, current caveats
@@ -480,3 +480,6 @@ print(f"forward displacement: {score:.6f} m  (backend={result.backend})")
 - [BACKENDS.md](BACKENDS.md) — MJX-JAX vs MJX-Warp: semantics, features, limitations
 - [COLAB_GPU.md](COLAB_GPU.md) — Colab T4 setup, validation checklist, benchmarking
 - [MIGRATION.md](MIGRATION.md) — migrating from `origami-engine` (classic MuJoCo)
+- [INTEGRATIONS.md](INTEGRATIONS.md) — ES/RL/AI interfaces (`origami_engine_mjx.integrations`)
+- [OPTIMIZATION_ES.md](OPTIMIZATION_ES.md) — search space, evaluator, optimizer adapters
+- [RL.md](RL.md) — Gymnasium and JAX-functional environments

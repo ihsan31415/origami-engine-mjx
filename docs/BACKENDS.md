@@ -1,6 +1,6 @@
 # Backends: MJX-JAX vs MJX-Warp
 
-> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Contributing](CONTRIBUTING.md)
+> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
 
 ## MJX-JAX (`backend="jax"`)
 
@@ -71,3 +71,4 @@ Use a GPU (JAX or Warp) for full-scale workloads. **No GPU numbers are claimed i
 - [MIGRATION.md](MIGRATION.md) — classic → MJX API mapping
 - [ARCHITECTURE.md](ARCHITECTURE.md) — module responsibilities and data flow
 - [SIMULATION.md](SIMULATION.md) — model structure, stepping loop, constants
+- [RL.md](RL.md) — the Gymnasium/JAX environments are MJX-JAX only

@@ -38,6 +38,10 @@ jobs:
         run: |
           mypy origami_engine_mjx --config-file pyproject.toml
 
+      - name: Check documentation links
+        run: |
+          python scripts/check_docs_links.py
+
       - name: Run pytest
         run: |
           pytest -q

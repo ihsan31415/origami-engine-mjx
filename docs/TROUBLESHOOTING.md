@@ -1,6 +1,6 @@
 # Troubleshooting
 
-> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · **Troubleshooting** · [Glossary](GLOSSARY.md) · [Contributing](CONTRIBUTING.md)
+> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · **Troubleshooting** · [Glossary](GLOSSARY.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
 
 Common problems and their fixes, grouped by stage.
 
@@ -70,6 +70,22 @@ See [CREASE_FORMAT.md](CREASE_FORMAT.md) for the full format rules and the JSON 
 pip install -U origami-engine-mjx     # upgrade        | uv pip install -U origami-engine-mjx
 pip uninstall origami-engine-mjx      # remove         | uv pip uninstall origami-engine-mjx
 ```
+
+## Optimization / RL environments
+
+**`RuntimeError: OrigamiEnv requires 'gymnasium'.`** — install the RL extra: `pip install 'origami-engine-mjx[rl]'`.
+
+**`RuntimeError: ... requires 'mujoco-mjx' and 'jax'.`** from `OrigamiEnv` or `integrations.jax_env` — install the JAX extra: `pip install 'origami-engine-mjx[jax]'`.
+
+**`RuntimeError: pymoo is required for to_pymoo_problem().`** — install the optimizer extra: `pip install 'origami-engine-mjx[opt]'`. `nevergrad`/`cma`/`evosax` are imported by your own script, not by the library, so install whichever optimizer you use.
+
+**`ValueError: OrigamiEnv currently supports backend='jax' only`** — the Warp backend is stateful and is not wrapped as an environment; use the MJX-JAX backend (see [RL.md](RL.md)).
+
+**`RuntimeError: call reset() before step()`** — call `env.reset()` (or `OrigamiVectorEnv.reset()`) before the first `step()`.
+
+**`ValueError: genome has length N, expected M`** — the vector length does not match `SearchSpace.dim`. Remember the default pattern has 15 *actuated* variables, not 24 creases; build the space with the same `active_only` setting you use elsewhere. See [OPTIMIZATION_ES.md](OPTIMIZATION_ES.md).
+
+**The integration tests are skipped** — `test_integrations.py` / `test_rl_env.py` skip themselves when their optional dependencies are absent (`pytest.importorskip`, or the `requires_jax` guard in `test_integrations.py`), and simulation cases are marked `slow`. Install `[opt]`/`[rl]`/`[jax]` and run `pytest -q -m slow`.
 
 ## Getting help
 

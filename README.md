@@ -29,6 +29,7 @@ This project is a dual-backend **MuJoCo MJX** origami folding simulator — a mi
 - Supports differentiable simulation and `jax.jit` / `jax.vmap` / `jax.lax.scan` on the JAX backend (CPU, NVIDIA GPU, or TPU)
 - Supports high-throughput batched population evaluation on the Warp backend (NVIDIA CUDA GPU, e.g. Colab T4)
 - Measures the forward displacement of the paper as a fitness signal, for single genomes or whole populations
+- Exposes ES / RL / AI **integration interfaces** (a fixed-topology search space, a stateless evaluator, Gymnasium and JAX-functional environments, optimizer adapters) without shipping any optimization or learning algorithm
 - Auto-selects a backend with `backend="auto"` (`warp` if a CUDA GPU is available, otherwise `jax`)
 
 ## Backends
@@ -171,6 +172,9 @@ For in-depth information, see the dedicated documentation files:
 - **[TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** — runtime problems and guidance
 - **[GLOSSARY.md](docs/GLOSSARY.md)** — terminology used across the codebase
 - **[CONTRIBUTING.md](docs/CONTRIBUTING.md)** — how to contribute, tests, CI
+- **[INTEGRATIONS.md](docs/INTEGRATIONS.md)** — ES/RL/AI integration interfaces overview
+- **[OPTIMIZATION_ES.md](docs/OPTIMIZATION_ES.md)** — search space, evaluator, optimizer adapters, QD descriptors
+- **[RL.md](docs/RL.md)** — Gymnasium and JAX-functional reinforcement-learning environments
 - `examples/` — runnable scripts (see the table below)
 
 *All documentation lives in [`docs/`](docs).*
@@ -196,6 +200,7 @@ For in-depth information, see the dedicated documentation files:
 - `origami_engine_mjx/backend.py` — lazy import guards for mujoco / mjx-jax / mjx-warp
 - `origami_engine_mjx/engine.py` — `OrigamiEngine`, the public facade with backend selection
 - `origami_engine_mjx/evaluation.py` — `evaluate_individual` / `evaluate_population`
+- `origami_engine_mjx/integrations/` — ES/RL/AI interfaces (no algorithms): `search_space.py` (`SearchSpace`), `evaluator.py` (`OrigamiEvaluator`, descriptors), `adapters.py` (pymoo / nevergrad / cma / evosax), `env.py` (`OrigamiEnv`, `OrigamiVectorEnv`), `jax_env.py` (pure-JAX `reset` / `step`), `plumbing.py` (seeding, genome/checkpoint I/O, run logging, benchmark)
 - `origami_engine_mjx/backends/` — `base.py` (`SimulationBackend` ABC), `jax_backend.py` (`put_model` / `make_data` / `mjx.step`, optional jit), `warp_backend.py` (`mjw.make_model` / `make_data` / `mjw.step`, GPU), and a registry with `get_backend(name)`
 - `origami_engine_mjx/schemas/` — JSON schema for crease files
 - `origami_engine_mjx/crease_patterns/` — `reference_miura_4x4.json`
@@ -216,6 +221,10 @@ from origami_engine_mjx import (
 ```
 
 *For the complete layout and data flow, see [ARCHITECTURE.md](docs/ARCHITECTURE.md).*
+
+## Optimization & RL interfaces
+
+The library is the **environment / evaluator substrate** for external search and learning tools — it ships **no** optimization or learning algorithm. `origami_engine_mjx.integrations` provides a fixed-topology `SearchSpace` (15 actuated fold angles for the default Miura pattern), a stateless picklable `OrigamiEvaluator` with behavior descriptors for quality-diversity, a Gymnasium `OrigamiEnv` plus pure-JAX `reset`/`step` (jittable / vmappable), thin adapters for `pymoo` / `nevergrad` / `cma` / `evosax`, and plumbing (seeding, genome/checkpoint I/O, run logging, throughput benchmark). See [INTEGRATIONS.md](docs/INTEGRATIONS.md), [OPTIMIZATION_ES.md](docs/OPTIMIZATION_ES.md) and [RL.md](docs/RL.md).
 
 ## License
 

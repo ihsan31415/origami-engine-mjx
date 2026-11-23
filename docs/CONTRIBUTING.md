@@ -1,6 +1,6 @@
 # Contributing
 
-> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · **Contributing**
+> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [RL](RL.md) · **Contributing**
 
 Thanks for your interest in contributing! You can help with code, tests, documentation, example crease patterns, or bug reports.
 
@@ -21,7 +21,7 @@ uv venv .venv && . .venv/bin/activate
 uv pip install -e ".[dev,jax,warp]"
 ```
 
-`[dev]` adds `pytest`, `pytest-cov`, `ruff`, `mypy`, and `pre-commit`; `[jax]` adds the MJX-JAX backend; `[warp]` adds the MJX-Warp backend (requires CUDA GPU).
+`[dev]` adds `pytest`, `pytest-cov`, `ruff`, `mypy`, and `pre-commit`; `[jax]` adds the MJX-JAX backend; `[warp]` adds the MJX-Warp backend (requires CUDA GPU); `[opt]` adds the optimizer adapters (`pymoo`, `nevergrad`, `cma`, `evosax`) and `[rl]` adds `gymnasium`. The `[opt]`/`[rl]` extras are only needed for the integration tests and examples — the core package never imports them.
 
 ## Everyday commands (Makefile)
 
@@ -34,6 +34,7 @@ uv pip install -e ".[dev,jax,warp]"
 | `make lint` | `ruff check .` + `ruff format --check .` |
 | `make format` | `ruff format .` + `ruff check --fix .` |
 | `make typecheck` | `mypy origami_engine_mjx --config-file pyproject.toml` |
+| `make docs-check` | `python scripts/check_docs_links.py` (Markdown links + heading anchors) |
 | `make clean` | Remove generated artifacts and caches |
 
 Without make, the equivalents are plain commands, e.g. `python -m pytest -q`, `python -m ruff check .`.
@@ -74,6 +75,7 @@ Configured hooks (`.pre-commit-config.yaml`): `ruff --fix`, `ruff-format`, and `
 - Suite: `tests_mjx/` with fixtures in `tests_mjx/conftest.py` (`tiny_creases`).
 - Config: `testpaths = ["tests_mjx"]`, `python_files = ["test_*.py"]`, and a `slow` marker. `pytest-cov` is installed via `[dev]`, so run `pytest --cov=origami_engine_mjx` if you want a coverage report.
 - Add or update tests for any new behavior: input validation, JSON round-trips, pattern validity reasons, evaluation semantics (order preservation, `error_policy`), and a smoke run with short `duration`.
+- Integration interfaces are covered by `tests_mjx/test_integrations.py` (search space, evaluator, adapters, plumbing) and `tests_mjx/test_rl_env.py` (Gymnasium env, vector env). The simulation-backed cases there are marked `slow`; the rest are fast and run with `pytest -q`.
 - Run `make lint && make typecheck && make test` before opening a PR.
 
 **CPU tests note:** MJX-JAX on CPU is slow for mesh-contact models (~1.4 s/step for 2-face mini models; ~70 s/step for the 16-face reference model). The test suite uses tiny 2-face patterns; tests marked `@pytest.mark.slow` are skipped by default (`pytest -q` excludes them) and require `pytest -q -m slow` on a faster machine or GPU.
@@ -82,7 +84,7 @@ Configured hooks (`.pre-commit-config.yaml`): `ruff --fix`, `ruff-format`, and `
 
 `.github/workflows/ci.yml` runs on push/PR to `main`:
 
-1. **lint-and-test** — matrix over Python 3.10 and 3.11: `ruff check .`, `ruff format --check .`, `mypy origami_engine_mjx --config-file pyproject.toml`, `pytest -q` (after `pip install -e ".[dev]"`; JAX/MJX tests use `pytest.importorskip`, so they are skipped when the optional backend is not installed).
+1. **lint-and-test** — matrix over Python 3.10 and 3.11: `ruff check .`, `ruff format --check .`, `mypy origami_engine_mjx --config-file pyproject.toml`, `pytest -q` (after `pip install -e ".[dev]"`; JAX/MJX tests use `pytest.importorskip` or the `requires_jax` skip guard, so they are skipped when the optional backend is not installed).
 2. **publish-to-pypi** — builds the sdist/wheel with `python -m build` and publishes via `pypa/gh-action-pypi-publish` (PyPI Trusted Publishing, OIDC).
 
 Note: The publish job only runs on pushes to `main` and requires Docker image pre-pull.
@@ -97,7 +99,7 @@ Note: The publish job only runs on pushes to `main` and requires Docker image pr
 
 ## Documentation contributions
 
-- The documentation set lives in `docs/` (`GETTING_STARTED.md`, `TUTORIALS.md`, `CREASE_FORMAT.md`, `SIMULATION.md`, `EVALUATION.md`, `API_REFERENCE.md`, `ARCHITECTURE.md`, `TROUBLESHOOTING.md`, `GLOSSARY.md`, `CONTRIBUTING.md`, `BACKENDS.md`, `COLAB_GPU.md`, `MIGRATION.md`) plus `examples/README.md` and `README.md`/`CHANGELOG.md` at the repo root.
+- The documentation set lives in `docs/` (`README.md` index, `GETTING_STARTED.md`, `TUTORIALS.md`, `CREASE_FORMAT.md`, `SIMULATION.md`, `EVALUATION.md`, `API_REFERENCE.md`, `ARCHITECTURE.md`, `TROUBLESHOOTING.md`, `GLOSSARY.md`, `CONTRIBUTING.md`, `BACKENDS.md`, `COLAB_GPU.md`, `MIGRATION.md`, `INTEGRATIONS.md`, `OPTIMIZATION_ES.md`, `RL.md`) plus `examples/README.md` and `README.md`/`CHANGELOG.md` at the repo root.
 - Link to docs with the bare filename as the link text (e.g. `[TUTORIALS.md](TUTORIALS.md)`) — never a path prefix inside the button.
 - Keep the **documentation map** nav line at the top of each doc in `docs/` intact and add new pages to it, so every `.md` stays traceable from `README.md`.
 - Keep docs accurate to the code: signatures in [API_REFERENCE.md](API_REFERENCE.md) must match the source; run the examples when you change behavior.
@@ -111,9 +113,12 @@ origami-engine-mjx/
 │   ├── 01_evaluate_cpu_jax.py
 │   ├── 02_evaluate_warp_gpu.py
 │   ├── 03_batch_population.py
+│   ├── 04_optimize_es.py        # black-box optimization demo
+│   ├── 05_rl_env.py             # Gymnasium / JAX-functional env demo
 │   └── colab_gpu_validation.py  # GPU benchmark (Colab T4)
 ├── origami_engine_mjx/      # MJX dual-backend package
 │   ├── backends/            # MJX-JAX and MJX-Warp implementations
+│   ├── integrations/        # ES/RL/AI interfaces (no algorithms)
 │   ├── crease_patterns/     # Packaged reference Miura JSON
 │   ├── schemas/             # JSON Schema for crease input
 │   ├── __init__.py          # Public exports

@@ -1,6 +1,6 @@
 # Getting Started
 
-> **Documentation map:** [README](../README.md) · **Getting Started** · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Contributing](CONTRIBUTING.md)
+> **Documentation map:** [README](../README.md) · **Getting Started** · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
 
 This guide covers how to install **origami-engine-mjx** and get started with the MJX-JAX (CPU/GPU/TPU) and MJX-Warp (NVIDIA CUDA GPU) backends.
 
@@ -40,7 +40,7 @@ The package is available from PyPI. Choose the installation that matches your ne
 | Core (geometry, patterns, XML generation — no GPU needed) | `pip install origami-engine-mjx` |
 | + MJX-JAX backend (CPU works out of the box) | `pip install 'origami-engine-mjx[jax]'` |
 | + MJX-Warp backend (requires NVIDIA CUDA GPU) | `pip install 'origami-engine-mjx[warp]'` |
-| Everything (JAX + Warp + dev tooling) | `pip install 'origami-engine-mjx[all]'` |
+| Everything (JAX + Warp + optimizer/RL extras + dev tooling) | `pip install 'origami-engine-mjx[all]'` |
 
 This package ships **no** video renderer; see [MIGRATION.md](MIGRATION.md#origami-render-and-video-rendering) for the rendering options.
 
@@ -57,7 +57,7 @@ pip install -e ".[dev,jax,warp]"
 
 ```bash
 python -c "import origami_engine_mjx; print(origami_engine_mjx.__version__)"
-# 0.1.0
+# 1.0.0
 
 python -c "
 from origami_engine_mjx.backends import available_backends
@@ -128,3 +128,4 @@ print(f"forward displacement (warp/GPU): {score:.6f} m")
 - Full API signatures: [API_REFERENCE.md](API_REFERENCE.md)
 - Install/runtime problems: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 - Package layout and data flow: [ARCHITECTURE.md](ARCHITECTURE.md)
+- Optimization / RL / AI interfaces: [INTEGRATIONS.md](INTEGRATIONS.md)
