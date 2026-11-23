@@ -472,7 +472,7 @@ print(f"forward displacement: {score:.6f} m  (backend={result.backend})")
 ## See also
 
 - [GETTING_STARTED.md](GETTING_STARTED.md) — installation (pip / uv / source) and first run
-- [TUTORIALS.md](TUTORIALS.md) — nine step-by-step recipes
+- [TUTORIALS.md](TUTORIALS.md) — eight step-by-step recipes
 - [CREASE_FORMAT.md](CREASE_FORMAT.md) — crease & JSON schema reference
 - [SIMULATION.md](SIMULATION.md) — XML model structure and stepping loop
 - [EVALUATION.md](EVALUATION.md) — fitness functions, population evaluation, current caveats
