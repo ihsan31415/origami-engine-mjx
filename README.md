@@ -39,7 +39,7 @@ score = engine.evaluate(creases, duration=2.0)
 print(f"forward displacement: {score:.4f} m")
 
 # Batch population evaluation
-population = [creases, creases, creases]   # replace with your genomes
+population = [creases, creases, creases]  # replace with your genomes
 result = engine.evaluate_population(population, duration=2.0)
 print(result.scores)
 ```
@@ -47,7 +47,7 @@ print(result.scores)
 On Google Colab with an NVIDIA T4:
 
 ```python
-engine = OrigamiEngine(backend="warp")   # CUDA GPU via MuJoCo Warp
+engine = OrigamiEngine(backend="warp")  # CUDA GPU via MuJoCo Warp
 result = engine.evaluate_population(population, duration=8.0, batch_size=128)
 ```
 

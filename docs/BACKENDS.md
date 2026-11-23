@@ -22,9 +22,9 @@
 ## Backend selection
 
 ```python
-OrigamiEngine(backend="jax")    # explicit
-OrigamiEngine(backend="warp")   # explicit; raises RuntimeError if no CUDA GPU
-OrigamiEngine(backend="auto")   # warp if CUDA available, else jax
+OrigamiEngine(backend="jax")  # explicit
+OrigamiEngine(backend="warp")  # explicit; raises RuntimeError if no CUDA GPU
+OrigamiEngine(backend="auto")  # warp if CUDA available, else jax
 ```
 
 The engine never silently switches backends after construction. If you request `"warp"` without a GPU, you get a clear `RuntimeError`, not a fallback.

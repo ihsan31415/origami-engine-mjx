@@ -15,12 +15,14 @@
 ```python
 # OLD
 from origami_engine import evaluate_individual, evaluate_population
+
 score = evaluate_individual(creases, duration=2.0)
 scores = evaluate_population(pop, duration=2.0, workers=4)
 
 # NEW
 from origami_engine_mjx import OrigamiEngine, evaluate_individual, evaluate_population
-engine = OrigamiEngine(backend="jax")          # or "warp" on GPU
+
+engine = OrigamiEngine(backend="jax")  # or "warp" on GPU
 score = evaluate_individual(creases, duration=2.0, backend="jax")
 scores = evaluate_population(pop, duration=2.0, backend="jax")
 # or via the engine object:
