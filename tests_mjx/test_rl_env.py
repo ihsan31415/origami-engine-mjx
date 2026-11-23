@@ -37,6 +37,12 @@ def test_env_rejects_unknown_render_mode(tiny_space):
         OrigamiEnv(space=tiny_space, render_mode="human")
 
 
+def test_env_render_without_render_mode_returns_none(tiny_space):
+    env = OrigamiEnv(space=tiny_space)
+    assert env.render() is None
+    env.close()
+
+
 def test_env_rejects_bad_action_mode(tiny_space):
     with pytest.raises(ValueError):
         OrigamiEnv(space=tiny_space, action_mode="relative")

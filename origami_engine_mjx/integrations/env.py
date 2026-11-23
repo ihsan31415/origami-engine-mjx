@@ -121,7 +121,8 @@ class OrigamiEnv(gym.Env if gym is not None else object):  # type: ignore[misc]
 
         if space is None:
             if creases is None:
-                creases = SearchSpace.from_default_pattern().decode(np.zeros(SearchSpace.from_default_pattern().dim))
+                default = SearchSpace.from_default_pattern()
+                creases = default.decode(np.zeros(default.dim))
             space = SearchSpace.from_creases(creases, active_only=True)
         self.space = space
         self.backend = backend
@@ -299,14 +300,21 @@ class OrigamiEnv(gym.Env if gym is not None else object):  # type: ignore[misc]
             return None
         import mujoco
 
-        if self._renderer is None:
-            self._renderer = mujoco.Renderer(self._classic, height=480, width=640)
-        data = mujoco.MjData(self._classic)
-        data.qpos[:] = np.asarray(self._data.qpos, dtype=float)
-        data.qvel[:] = np.asarray(self._data.qvel, dtype=float)
-        mujoco.mj_forward(self._classic, data)
-        self._renderer.update_scene(data)
-        return self._renderer.render()
+        try:
+            if self._renderer is None:
+                self._renderer = mujoco.Renderer(self._classic, height=480, width=640)
+            data = mujoco.MjData(self._classic)
+            data.qpos[:] = np.asarray(self._data.qpos, dtype=float)
+            data.qvel[:] = np.asarray(self._data.qvel, dtype=float)
+            mujoco.mj_forward(self._classic, data)
+            self._renderer.update_scene(data)
+            return self._renderer.render()
+        except Exception as exc:
+            raise RuntimeError(
+                "offscreen rendering is unavailable on this machine; it needs a working GL context "
+                "(EGL or OSMesa). Run headless without render_mode='rgb_array', or install a "
+                "GL-capable MuJoCo build."
+            ) from exc
 
     def close(self) -> None:
         """Release the renderer if one was created."""

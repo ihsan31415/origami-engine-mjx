@@ -61,9 +61,12 @@ function that needs it, with an install hint.
 | `integrations/jax_env.py` | `reset`, `step`, `observe`, `build_jax_model`, `make_params`, `EnvState`, `EnvParams` | Pure JAX functions (`jit`/`vmap`/`scan`) |
 | `integrations/plumbing.py` | `make_rng`, `set_global_seed`, `save_genome`, `load_genome`, `save_best`, `load_best`, `RunLogger`, `benchmark` | Reproducibility, I/O, logging, throughput |
 
-All of these are re-exported from `origami_engine_mjx.integrations`; the
-environment symbols are exposed lazily so a NumPy-only user never imports JAX or
-Gymnasium.
+The non-environment names are re-exported from `origami_engine_mjx.integrations`;
+the environment symbols (`OrigamiEnv`, `OrigamiVectorEnv`, `EnvState`,
+`EnvParams`, `build_jax_model`, `make_params`, `observe`) are exposed lazily so a
+NumPy-only user never imports JAX or Gymnasium. The pure-JAX `reset` / `step`
+functions live only in the `integrations.jax_env` submodule, since their names
+are too generic to re-export safely.
 
 ## The design space in one paragraph
 
@@ -141,8 +144,8 @@ exactly one `OrigamiEngine` run.
 - The evaluator is a thin layer over `OrigamiEngine.run` and
   `compute_forward_displacement`; it does not change their behaviour.
 - The environments are built directly on the backend internals
-  (`build_model` / `make_state` / `mjx.step`) because there is no per-step
-  public backend API. The core modules are unchanged.
+  (`JaxBackend().build_model` / `mjx.make_data` / `mjx.step`) because there is no
+  per-step public backend API. The core modules are unchanged.
 - Nothing in `integrations/` is imported by the core package, so the public API
   and its signatures are unaffected.
 
