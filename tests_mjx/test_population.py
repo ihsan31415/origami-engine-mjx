@@ -129,6 +129,14 @@ def test_diversity_filter_k_ge_n_returns_all(space):
     assert diversity_filter(X, 5, space=space).shape == X.shape
 
 
+def test_diversity_filter_returns_genome_space_rows(space):
+    """Distances use the normalized view, but the returned rows are genomes."""
+    X = random_population(space, 6, rng=0)
+    selected = diversity_filter(X, 3, space=space, rng=0)
+    for row in selected:
+        assert any(np.allclose(row, x) for x in X)
+
+
 def test_population_stats(space):
     X = random_population(space, 8, rng=0)
     stats = population_stats(X, space)
@@ -137,6 +145,24 @@ def test_population_stats(space):
     assert stats["valid_fraction"] == pytest.approx(1.0)
     assert stats["mean_pairwise_distance"] > 0.0
     assert len(stats["mean"]) == space.dim
+
+
+def test_population_stats_empty(space):
+    assert population_stats([])["n"] == 0
+    empty = population_stats([], space=space)
+    assert empty["n"] == 0
+    assert empty["valid_fraction"] is None
+    # an empty (0, dim) input keeps the declared dimension
+    shaped = population_stats(np.zeros((0, space.dim)), space=space)
+    assert shaped["n"] == 0 and shaped["dim"] == space.dim
+
+
+def test_deduplicate_with_space_returns_genome_rows(space):
+    X = np.vstack([space.base_vector(), space.base_vector(), space.sample(1)])
+    unique, keep = deduplicate(X, space=space)
+    assert keep.tolist() == [0, 2]
+    assert unique.shape == (2, space.dim)
+    assert np.allclose(unique[0], space.base_vector())
 
 
 # ----------------------------------------------------------------------

@@ -21,8 +21,11 @@ ships no mutation, crossover, selection or search.  The helpers cover:
 * **Statistics** — :func:`population_stats`.
 
 The design space is duck-typed: it only needs ``dim``, ``lower``, ``upper``,
-``sample``, ``base_vector``, ``encode``, ``is_valid``, ``to_normalized`` and
-``from_normalized`` (all provided by ``SearchSpace`` and ``DesignSpace``).
+``sample``, ``encode``, ``is_valid``, ``to_normalized`` and ``from_normalized``
+(all provided by ``SearchSpace`` and ``DesignSpace``).  The Gaussian initializer
+additionally uses a centre genome — ``DesignSpace.base_vector()`` or, for a
+``SearchSpace``, the ``base_angles``/``active_indices`` slice (falling back to
+the bounds midpoint).
 """
 
 import json
@@ -358,12 +361,16 @@ def random_population(space: Space, n: int, rng=None, method: str = "uniform") -
 def deduplicate(genomes, space: Space | None = None, ndigits: int = 9) -> tuple[np.ndarray, np.ndarray]:
     """Drop duplicate genomes, keeping first occurrences.
 
-    Returns ``(unique_genomes, keep_indices)``.
+    When ``space`` is given, duplicates are detected on the normalized ``[-1, 1]``
+    view (so angle and geometry variables are compared consistently); the
+    *returned* rows are always the original genome-space rows.  Returns
+    ``(unique_genomes, keep_indices)``.
     """
     X = np.atleast_2d(np.asarray(genomes, dtype=float))
+    rows = np.vstack([space.to_normalized(row) for row in X]) if space is not None else X
     seen: set[tuple] = set()
     keep: list[int] = []
-    for i, row in enumerate(X):
+    for i, row in enumerate(rows):
         key = tuple(np.round(row, ndigits).tolist())
         if key in seen:
             continue
@@ -386,16 +393,17 @@ def diversity_filter(genomes, k: int, space: Space | None = None, rng=None) -> n
         return X.copy()
     if k <= 0:
         return X[:0].copy()
-    if space is not None:
-        X = np.vstack([space.to_normalized(row) for row in X])
+    # Distances are measured in the normalized view when a space is given, but
+    # the *returned* rows are always the original genome-space rows.
+    D = np.vstack([space.to_normalized(row) for row in X]) if space is not None else X
     g = _as_rng(rng)
     first = int(g.integers(0, n))
     selected = [first]
-    dist = np.linalg.norm(X - X[first], axis=1)
+    dist = np.linalg.norm(D - D[first], axis=1)
     for _ in range(k - 1):
         nxt = int(np.argmax(dist))
         selected.append(nxt)
-        dist = np.minimum(dist, np.linalg.norm(X - X[nxt], axis=1))
+        dist = np.minimum(dist, np.linalg.norm(D - D[nxt], axis=1))
     return X[selected]
 
 
@@ -499,7 +507,7 @@ def mixed_population(
         genomes = genomes[keep]
         prov = [prov[i] for i in keep]
     if dedup and len(genomes):
-        genomes, keep_idx = deduplicate(genomes)
+        genomes, keep_idx = deduplicate(genomes, space=space)
         prov = [prov[int(i)] for i in keep_idx]
     # Shuffle so the parts are not contiguous.
     if len(genomes):
@@ -621,6 +629,11 @@ def population_stats(genomes, space: Space | None = None) -> dict[str, Any]:
     the fraction of valid genomes when ``space`` exposes ``is_valid``.
     """
     X = np.atleast_2d(np.asarray(genomes, dtype=float))
+    if np.asarray(genomes, dtype=float).size == 0:
+        # ``np.atleast_2d([])`` would report a phantom ``(1, 0)`` row; keep the
+        # declared dimension for an empty ``(0, dim)`` input.
+        arr = np.asarray(genomes, dtype=float)
+        X = arr.reshape(0, arr.shape[1] if arr.ndim == 2 else 0)
     n, dim = X.shape if X.ndim == 2 else (0, 0)
     stats: dict[str, Any] = {
         "n": int(n),

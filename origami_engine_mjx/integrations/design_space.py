@@ -233,7 +233,9 @@ class DesignSpace:
     dependent : dict[int, tuple[int, float]]
         Constraint expansion: ``dependent[j] = (i, sign)`` means variable ``j``
         is ``sign * variable[i]``.  Dependent indices are removed from the
-        genome and re-expanded by :meth:`decode`.
+        genome and re-expanded by :meth:`decode`.  Every ``i`` must be a *free*
+        variable (not itself dependent); :meth:`with_constraints` resolves chains
+        so this holds.
     count_mode : {"fixed", "range", "free"}
         How the crease count may vary (only meaningful with presence
         variables).
@@ -268,6 +270,11 @@ class DesignSpace:
                 raise ValueError(f"constraint index out of range: dependent[{dep}] = {src}")
             if int(dep) == int(src):
                 raise ValueError(f"constraint links variable {dep} to itself")
+            if int(src) in self.dependent:
+                raise ValueError(
+                    f"dependent variable {dep} points at dependent variable {src}; dependent sources "
+                    "must be free variables (build constraints with with_constraints to resolve chains)"
+                )
         for v in self.variables:
             for ci, _ in v.targets:
                 if not 0 <= ci < len(self.base_creases):
@@ -629,6 +636,8 @@ class DesignSpace:
         want = 1 if size is None else int(size)
         if want < 0:
             raise ValueError("size must be non-negative")
+        if want == 0:
+            return np.empty((0, self.dim), dtype=float)
         accepted: list[np.ndarray] = []
         attempts = 0
         budget = max_tries * want if want else 0
@@ -970,8 +979,10 @@ class DesignSpace:
     ) -> DesignSpace:
         """Preset: angles, geometry and (optionally) crease presence.
 
-        With ``presence`` set (``None`` means every slot), the space also has a
-        presence variable per selected slot, giving a variable crease count.
+        With ``presence`` set to a crease selection (index / slice / list /
+        boolean mask) the space also has a presence variable per selected slot,
+        giving a variable crease count.  The default ``presence=None`` adds **no**
+        presence variables, so ``everything()`` varies only angles and geometry.
         """
         space = cls.angles_only(creases, active_only=active_only, angle_limits=angle_limits, name=name)
         builder = DesignSpaceBuilder(space.base_creases)

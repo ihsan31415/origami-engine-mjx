@@ -13,11 +13,13 @@ crossover, selection or search — only seeding and initialization helpers:
 - **validity-aware** generation, **de-duplication** and **diversity** selection,
 - **population I/O** and **statistics**.
 
-The helpers are duck-typed on the space: they only need `dim`, `lower`,
-`upper`, `sample`, `base_vector`, `encode`, `is_valid`, `to_normalized` and
-`from_normalized`, which both
+The helpers are duck-typed on the space: they use `dim`, `lower`, `upper`,
+`sample`, `encode`, `is_valid`, `to_normalized` and `from_normalized`, all of
+which both
 [`SearchSpace`](OPTIMIZATION_ES.md#1-define-the-search-space) and
-[`DesignSpace`](SEARCH_SPACE.md) provide.
+[`DesignSpace`](SEARCH_SPACE.md) provide. The Gaussian initializer also needs a
+centre genome — `DesignSpace.base_vector()` or, for `SearchSpace`, the
+`base_angles`/`active_indices` slice (falling back to the bounds midpoint).
 
 ## 1. Random initialization
 
@@ -161,8 +163,10 @@ unique, keep = deduplicate(genomes)  # (unique_rows, kept_indices)
 selected = diversity_filter(genomes, 16, space=space, rng=0)
 ```
 
-- `deduplicate(genomes, ndigits=9)` keeps the first occurrence of each rounded
-  genome and returns the unique rows plus their indices.
+- `deduplicate(genomes, space=None, ndigits=9)` keeps the first occurrence of
+  each rounded genome and returns the unique rows plus their indices. With
+  `space`, duplicates are detected in the normalized view (the returned rows are
+  still genome-space rows).
 - `diversity_filter(genomes, k, space=None, rng=None)` is **farthest-point
   sampling**: it seeds with one random genome and greedily adds the point
   farthest from those already chosen. With `space` the distance is measured in

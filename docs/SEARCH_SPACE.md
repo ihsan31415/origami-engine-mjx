@@ -101,10 +101,11 @@ space.select(indices=mask)  # boolean mask of length space.dim
 space.select(predicate=lambda v: v.kind == "coord")  # by variable property
 ```
 
-Out-of-range or wrong-length selections raise `ValueError` with the offending
-index/length, and an empty or conflicting selection is reported rather than
-silently returning nothing. Groups are set by the builder (`group=` argument)
-and default to `"angles"`, `"loop_angles"`, `"geometry"` and `"presence"`.
+Out-of-range or wrong-length selections raise `ValueError` naming the offending
+index/length, and an empty selection yields a space with no variables, which
+`build()` rejects with a clear error rather than returning a degenerate space.
+Groups are set by the builder (`group=` argument) and default to `"angles"`,
+`"loop_angles"`, `"geometry"` and `"presence"`.
 
 ## 4. Fluent builder and dict/JSON form
 
@@ -145,8 +146,8 @@ genome = space.sample(0)  # (dim,) uniform within bounds
 batch = space.sample(0, size=32)  # (32, dim)
 z = space.to_normalized(genome)  # view in [-1, 1]
 back = space.from_normalized(z)  # clipped back to bounds
-safe = space.clip(candidate)  # clip + fill NaN with the base vector
-safe = space.repair(candidate)  # alias with the same guarantees
+safe = space.clip(candidate)  # clip to the per-variable bounds
+safe = space.repair(candidate)  # clip + replace non-finite values with the base vector
 ```
 
 Per-variable bounds come from the builder/preset (`bounds=`), so angle and
@@ -214,8 +215,9 @@ sample = space.rejection_sample(0, size=8)  # only valid genomes, bounded attemp
 ```
 
 `is_valid` runs the cheap shared `geometry.build_pattern` check; `repair` is a
-projection that never raises, and `rejection_sample` resamples until it finds
-valid genomes (raising only if it exhausts its attempt budget).
+bounds projection that never raises for a correctly sized input, and
+`rejection_sample` resamples until it finds valid genomes (raising only if it
+exhausts its attempt budget).
 
 ## 9. Introspection
 

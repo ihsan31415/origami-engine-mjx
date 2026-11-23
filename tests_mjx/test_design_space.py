@@ -138,6 +138,21 @@ def test_constrained_space_rejects_rl_conversion():
         base.with_constraints(symmetries=[(0, 1)]).to_search_space()
 
 
+def test_dependent_source_must_be_free():
+    """A dependent variable may not point at another dependent variable."""
+    base = load_default_creases()
+    variables = [
+        Variable(ANGLE, [(0, "")], lower=-1.0, upper=1.0, name="a"),
+        Variable(ANGLE, [(1, "")], lower=-1.0, upper=1.0, name="b"),
+        Variable(ANGLE, [(2, "")], lower=-1.0, upper=1.0, name="c"),
+    ]
+    with pytest.raises(ValueError, match="dependent sources"):
+        DesignSpace(base_creases=base, variables=variables, dependent={1: (0, 1.0), 2: (1, 1.0)})
+    # with_constraints resolves the chain so only free sources remain
+    resolved = DesignSpace(base_creases=base, variables=variables).with_constraints(equalities=[(0, 1), (1, 2)])
+    assert resolved.dependent == {1: (0, 1.0), 2: (0, 1.0)}
+
+
 # ----------------------------------------------------------------------
 # Presence / variable crease count
 # ----------------------------------------------------------------------
@@ -191,6 +206,12 @@ def test_rejection_sample_returns_valid_genomes():
     sample = space.rejection_sample(0, size=2)
     assert sample.shape == (2, space.dim)
     assert all(space.is_valid(row) for row in sample)
+
+
+def test_rejection_sample_size_zero_is_empty():
+    space = DesignSpace.from_default_pattern()
+    sample = space.rejection_sample(0, size=0)
+    assert sample.shape == (0, space.dim)
 
 
 def test_normalized_round_trip_for_geometry():
@@ -323,6 +344,45 @@ def test_evaluator_reports_invalid_path():
     res = ev.evaluate_batch(X, return_details=False)
     assert "invalid" in res.paths
     assert any(s == "invalid" for s in res.status)
+
+
+class _AngleSumEngine:
+    """Deterministic engine: score = sum of the decoded crease angles."""
+
+    def __init__(self) -> None:
+        self.calls: list[int] = []
+
+    def evaluate_population(self, pop, **kwargs):
+        self.calls.append(len(pop))
+        scores = np.asarray([sum(c.angle for c in creases) for creases in pop], dtype=float)
+
+        class _R:
+            pass
+
+        r = _R()
+        r.scores = scores
+        return r
+
+
+def test_evaluator_mixed_topology_scores_match_one_by_one():
+    """A bucketed mixed-topology batch must score each row exactly like a
+    single-row evaluation of the same genome."""
+    space = DesignSpace.angles_and_geometry()
+    rng = np.random.default_rng(3)
+    X = np.vstack([space.repair(rng.uniform(space.lower, space.upper)) for _ in range(6)])
+
+    ev = _StubEvaluator(space)
+    ev.eng = _AngleSumEngine()
+    batch = ev.evaluate_batch(X, return_details=False)
+
+    singles = []
+    for i in range(6):
+        ev_i = _StubEvaluator(space)
+        ev_i.eng = _AngleSumEngine()
+        singles.append(float(ev_i.evaluate_batch(X[i : i + 1], return_details=False).raw[0]))
+
+    assert np.allclose(batch.raw, np.asarray(singles))
+    assert sum(ev.eng.calls) == sum(1 for p in batch.paths if p != "invalid")
 
 
 # ----------------------------------------------------------------------
