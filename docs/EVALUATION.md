@@ -114,7 +114,7 @@ from origami_engine_mjx import evaluate_individual, load_default_creases
 import numpy as np
 
 population = [load_default_creases() for _ in range(8)]
-scores = ([],)
+scores = []
 for individual in population:
     scores.append(
         evaluate_individual(
