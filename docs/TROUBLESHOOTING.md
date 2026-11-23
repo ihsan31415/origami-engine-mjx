@@ -85,7 +85,7 @@ pip uninstall origami-engine-mjx      # remove         | uv pip uninstall origam
 
 **`ValueError: genome has length N, expected M`** — the vector length does not match `SearchSpace.dim`. Remember the default pattern has 15 *actuated* variables, not 24 creases; build the space with the same `active_only` setting you use elsewhere. See [OPTIMIZATION_ES.md](OPTIMIZATION_ES.md).
 
-**The integration tests are skipped** — `test_integrations.py` / `test_rl_env.py` `importorskip` their optional dependencies, and simulation cases are marked `slow`. Install `[opt]`/`[rl]`/`[jax]` and run `pytest -q -m slow`.
+**The integration tests are skipped** — `test_integrations.py` / `test_rl_env.py` skip themselves when their optional dependencies are absent (`pytest.importorskip`, or the `requires_jax` guard in `test_integrations.py`), and simulation cases are marked `slow`. Install `[opt]`/`[rl]`/`[jax]` and run `pytest -q -m slow`.
 
 ## Getting help
 
