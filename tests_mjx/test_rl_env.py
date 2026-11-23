@@ -4,13 +4,12 @@ Requires the ``[rl]`` (gymnasium) and ``[jax]`` extras.  Simulation-backed tests
 are marked ``slow`` (MJX-JAX on CPU is seconds per tiny step).
 """
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 
 gym = pytest.importorskip("gymnasium")
-pytest.importorskip("jax")
+jax = pytest.importorskip("jax")
+jnp = pytest.importorskip("jax.numpy")
 pytest.importorskip("mujoco.mjx")
 
 from origami_engine_mjx import Crease
