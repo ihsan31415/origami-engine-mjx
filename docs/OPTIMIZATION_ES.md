@@ -113,12 +113,18 @@ f = evaluator(genome)  # float
 F = evaluator(X)  # (N,) array
 ```
 
+On the fast path `BatchResult.raw` is the backend's +x displacement (the
+`trajectory` is validated but not applied); the structured path projects onto
+`trajectory`.
+
 ### Failures never crash a batch
 
 With the default `error_policy="penalty"`, a bad genome returns the documented
 `penalty` (default `-1e6`) and a `status` string instead of raising. Use
-`error_policy="raise"` to get exceptions. `EvalRecord.status` is one of
-`"ok"`, `"invalid"` (decode failed), `"nonfinite"` or `"error"`.
+`error_policy="raise"` to re-raise decode/simulation exceptions. `EvalRecord.status`
+is one of `"ok"`, `"invalid"` (decode failed), `"nonfinite"` (non-finite score —
+never raised) or `"error"` (simulation raised). A wrong-length genome is a
+programming error and always raises `ValueError`, regardless of the policy.
 
 ### Behavior descriptors (for quality-diversity)
 

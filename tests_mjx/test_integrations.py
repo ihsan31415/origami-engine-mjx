@@ -166,6 +166,22 @@ def test_evaluator_raise_on_failure(tiny_creases):
         ev.evaluate(np.zeros(space.dim))
 
 
+def test_evaluator_fast_batch_penalty_on_population_failure(tiny_creases):
+    """A population-level failure is converted to penalty records, not raised."""
+    space = SearchSpace.from_creases(tiny_creases)
+    ev = OrigamiEvaluator(space, trajectory=(0.0, 0.0, 0.0), error_policy="penalty")
+    res = ev.evaluate_batch(space.sample(0, size=2), return_details=False)
+    assert all(s != "ok" for s in res.status)
+    assert np.all(res.fitness == pytest.approx(-1e6))
+
+
+def test_evaluator_fast_batch_raise_on_population_failure(tiny_creases):
+    space = SearchSpace.from_creases(tiny_creases)
+    ev = OrigamiEvaluator(space, trajectory=(0.0, 0.0, 0.0), error_policy="raise")
+    with pytest.raises(ValueError):
+        ev.evaluate_batch(space.sample(0, size=2), return_details=False)
+
+
 def test_evaluator_bad_error_policy_raises(tiny_creases):
     space = SearchSpace.from_creases(tiny_creases)
     with pytest.raises(ValueError):
@@ -342,3 +358,22 @@ def test_benchmark_rejects_nonpositive_n(tiny_creases):
     ev = OrigamiEvaluator(space, backend="jax")
     with pytest.raises(ValueError):
         benchmark(ev, n=0)
+
+
+def test_benchmark_warmup_not_counted_as_cache_hit(tiny_creases):
+    """The warm-up genome is kept out of the timed set even with caching on."""
+    space = SearchSpace.from_creases(tiny_creases)
+    ev = _FixedEvaluator(space, use_cache=True)
+    benchmark(ev, n=2)
+    assert ev.n_cache_hits == 0
+
+
+def test_batch_result_reports_cached_and_errors(tiny_creases):
+    space = SearchSpace.from_creases(tiny_creases)
+    ev = _FixedEvaluator(space, use_cache=True)
+    X = space.sample(0, size=2)
+    ev.evaluate_batch(X, return_details=True)  # populate the cache
+    res = ev.evaluate_batch(X, return_details=True)  # all cache hits
+    assert res.cached.all()
+    assert all(err == "" for err in res.errors)
+    assert all(rec.cached for rec in res.as_records())

@@ -19,10 +19,13 @@ Contract
   minimizer that negates it (``-fitness``) optimizes in the requested
   direction.  Use :meth:`OrigamiEvaluator.to_minimizer` /
   :meth:`OrigamiEvaluator.to_maximizer` for the two conventions.
-* Failures (bad shape, invalid pattern, NaNs, unstable simulation) never raise
-  in the default ``error_policy="penalty"`` mode: they return the documented
-  ``penalty`` value and a per-genome ``status`` string.  Set
-  ``error_policy="raise"`` to get exceptions instead.
+* Per-genome failures — an invalid crease pattern, a simulation exception, or a
+  non-finite score — are reported as a ``status`` string plus the documented
+  ``penalty`` value rather than aborting the batch.  Set
+  ``error_policy="raise"`` to re-raise decode/simulation *exceptions* instead;
+  non-finite scores are still reported as ``"nonfinite"`` (never raised), and a
+  wrong-length genome always raises ``ValueError`` regardless of the policy
+  (it is a programming error, not a per-genome result).
 
 Reproducibility
 ---------------
@@ -74,13 +77,16 @@ class EvalRecord:
     fitness : float
         Signed value optimizers consume (``raw`` or ``-raw``).
     raw : float
-        Raw forward displacement (metres) along the evaluation trajectory.
+        Raw forward displacement (metres).  On the structured path this is
+        projected onto the evaluator ``trajectory``; the fitness-only fast path
+        delegates to the backends, which always score the +x displacement.
     status : str
         ``"ok"``, ``"invalid"`` (decode failed), ``"nonfinite"`` or ``"error"``.
     error : str
         Human-readable reason when ``status != "ok"``.
     time : float
-        Wall time for this genome in seconds (0.0 when served from cache).
+        Wall time for this genome in seconds (0.0 when served from cache, and on
+        the fitness-only fast path where per-genome time is not separable).
     descriptors : dict[str, float]
         Behavior descriptors (see :data:`DESCRIPTOR_NAMES`); empty in the
         fitness-only fast path.
@@ -112,6 +118,10 @@ class BatchResult:
     wall_time: float
     n_cache_hits: int = 0
     """Cumulative cache hits on the evaluator, not just this batch."""
+    errors: list[str] = field(default_factory=list)
+    """Per-genome error text (``""`` when ``status == "ok"``)."""
+    cached: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=bool))
+    """Per-genome cache-hit flags."""
 
     @property
     def n(self) -> int:
@@ -136,8 +146,10 @@ class BatchResult:
                     fitness=float(self.fitness[i]),
                     raw=float(self.raw[i]),
                     status=self.status[i],
+                    error=self.errors[i] if i < len(self.errors) else "",
                     time=float(self.time[i]),
                     descriptors={k: float(v[i]) for k, v in self.descriptors.items()},
+                    cached=bool(self.cached[i]) if i < len(self.cached) else False,
                 )
             )
         return out
@@ -167,7 +179,10 @@ class OrigamiEvaluator:
         Value returned for failed genomes.  Defaults to ``-1e6`` (the worst
         fitness, since fitness is always higher-is-better).
     error_policy : {"penalty", "raise"}
-        Behaviour on failure.  ``"penalty"`` (default) never raises.
+        Behaviour on per-genome failure.  ``"penalty"`` (default) converts
+        decode/simulation failures into penalty records; ``"raise"`` re-raises
+        those exceptions.  Non-finite scores always become ``"nonfinite"``
+        records, and a wrong-length genome always raises ``ValueError``.
     batch_size : int | None
         Forwarded to :meth:`OrigamiEngine.evaluate_population`.  Both built-in
         backends currently ignore it (they loop per individual), so it has no
@@ -364,7 +379,9 @@ class OrigamiEvaluator:
         -------
         BatchResult
             Signed fitness, raw displacement, status strings, per-genome wall
-            time and descriptors (empty on the fast path).
+            time, descriptors (empty on the fast path), error text and cache-hit
+            flags.  On the fast path ``raw`` is the backend's +x displacement
+            (the ``trajectory`` is validated but not applied).
         """
         X = np.asarray(genomes, dtype=float)
         if X.ndim == 1:
@@ -412,6 +429,8 @@ class OrigamiEvaluator:
         fitness = np.asarray([r.fitness for r in final], dtype=float)
         raw = np.asarray([r.raw for r in final], dtype=float)
         status = [r.status for r in final]
+        errors = [r.error for r in final]
+        cached_flags = np.asarray([r.cached for r in final], dtype=bool)
         times = np.asarray([r.time for r in final], dtype=float)
         descriptors: dict[str, np.ndarray] = {}
         if details:
@@ -425,6 +444,8 @@ class OrigamiEvaluator:
             descriptors=descriptors,
             wall_time=wall,
             n_cache_hits=self.n_cache_hits,
+            errors=errors,
+            cached=cached_flags,
         )
 
     def _fast_batch(self, engine: OrigamiEngine, X: np.ndarray, todo: list[int], records: list) -> None:
@@ -442,24 +463,32 @@ class OrigamiEvaluator:
         if not valid:
             return
         pop = [decoded[k] for k in range(len(valid))]
-        scores = engine.evaluate_population(
-            pop,
-            duration=self.duration,
-            trajectory=self.trajectory,
-            fold_duration=self.fold_duration,
-            vibrate=self.vibrate,
-            amp_x=self.amp_x,
-            amp_z=self.amp_z,
-            freq_hz=self.freq_hz,
-            batch_size=self.batch_size,
-        ).scores
+        try:
+            scores = engine.evaluate_population(
+                pop,
+                duration=self.duration,
+                trajectory=self.trajectory,
+                fold_duration=self.fold_duration,
+                vibrate=self.vibrate,
+                amp_x=self.amp_x,
+                amp_z=self.amp_z,
+                freq_hz=self.freq_hz,
+                batch_size=self.batch_size,
+            ).scores
+        except Exception as exc:
+            # Keep the fast path consistent with the structured path: a
+            # population-level failure becomes a penalty record per genome.
+            if self.error_policy == "raise":
+                raise
+            for i in valid:
+                records[i] = self._failed_record("error", f"{type(exc).__name__}: {exc}")
+                self.n_evaluations += 1
+            return
         share = 0.0  # per-genome time is not separable on this path
         for k, i in enumerate(valid):
             score = float(scores[k])
             records[i] = self._make_record(score, {}, share)
             self.n_evaluations += 1
-            if self.use_cache:
-                self._cache[X[i].tobytes()] = records[i]
 
     # ------------------------------------------------------------------
     # Convenience callables

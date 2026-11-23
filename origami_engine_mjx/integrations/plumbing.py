@@ -229,22 +229,28 @@ def benchmark(
     Returns a dict with ``n``, ``wall_time`` (seconds), ``evals_per_sec``,
     ``sec_per_eval`` and the ``batch_size`` actually used.  The first genome is
     evaluated once before timing as a warm-up (JIT/compile costs are not
-    representative of steady state).
+    representative of steady state); that warm-up genome is **not** part of the
+    timed set, so an enabled evaluator cache does not serve it during timing.
 
     Note: this measures *evaluations per second* for the configured
-    ``duration``; it does not measure raw physics steps per second.
+    ``duration``; it does not measure raw physics steps per second.  If the
+    evaluator has ``use_cache=True`` and the sampled genomes were already
+    evaluated, the timing reflects cache lookups rather than simulations —
+    benchmark with a fresh evaluator (or ``use_cache=False``) for throughput.
     """
     if int(n) < 1:
         raise ValueError("n must be at least 1")
     space = evaluator.space
     rng = make_rng(seed)
-    genomes = space.sample(rng, size=int(n))
+    # One extra genome is the warm-up, kept out of the timed set.
+    sampled = space.sample(rng, size=int(n) + 1)
+    warmup_genome, genomes = sampled[0], sampled[1:]
     if batch_size is None:
         batch_size = evaluator.batch_size or n
     batch_size = max(1, int(batch_size))
 
     # Warm-up (first call may trigger JAX compilation).
-    evaluator.evaluate(genomes[0])
+    evaluator.evaluate(warmup_genome)
 
     t0 = time.perf_counter()
     done = 0
