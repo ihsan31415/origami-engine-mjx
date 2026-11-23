@@ -1,6 +1,6 @@
 # Tutorials
 
-> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · **Tutorials** · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
+> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · **Tutorials** · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [Search space](SEARCH_SPACE.md) · [Populations](POPULATIONS.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
 
 Step-by-step recipes that build on each other. Every snippet assumes the package is installed (see [GETTING_STARTED.md](GETTING_STARTED.md)).
 
@@ -162,6 +162,8 @@ Results keep the input order. `trajectory` is validated but currently ignored by
 
 Runnable version: `python examples/03_batch_population.py`.
 
+For a *configurable* genome (loop-edge angles, crease endpoints, variable crease count) see [SEARCH_SPACE.md](SEARCH_SPACE.md), and to seed an initial population for an optimizer see [POPULATIONS.md](POPULATIONS.md). The default remains the 15-actuated-angle genome shown here.
+
 ## Tutorial 7 — Plot a pattern and save the figure
 
 ```python
@@ -208,5 +210,7 @@ The XML structure (bodies, hinges, equality constraints, actuators, table) is do
 - [EVALUATION.md](EVALUATION.md) — fitness functions in depth
 - [API_REFERENCE.md](API_REFERENCE.md) — every public function signature
 - [OPTIMIZATION_ES.md](OPTIMIZATION_ES.md) — driving the simulation from an external optimizer
+- [SEARCH_SPACE.md](SEARCH_SPACE.md) — the configurable `DesignSpace` (angles, geometry, crease count)
+- [POPULATIONS.md](POPULATIONS.md) — seeding an initial population
 - [RL.md](RL.md) — Gymnasium and JAX-functional reinforcement-learning environments
 - [examples/README.md](../examples/README.md) — runnable scripts (in `examples/`)

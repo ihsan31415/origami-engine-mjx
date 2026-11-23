@@ -21,12 +21,37 @@ import numpy as np
 from .evaluator import OrigamiEvaluator
 
 __all__ = [
+    "space_spec",
     "to_evosax_fitness",
     "to_nevergrad_function",
     "to_pymoo_problem",
 ]
 
 _OPT_HINT = "Install the optional optimizer extras with: pip install 'origami-engine-mjx[opt]'"
+
+
+def space_spec(space_or_evaluator) -> dict:
+    """Return the optimizer-facing spec of a space or evaluator.
+
+    Exposes the dimensionality, per-variable bounds, parameter names and the
+    indices of any presence (crease-count) variables, so an external optimizer
+    can build its problem without importing the space classes.  Works for both
+    :class:`~origami_engine_mjx.integrations.search_space.SearchSpace` and
+    :class:`~origami_engine_mjx.integrations.design_space.DesignSpace` (an
+    evaluator is accepted and its ``space`` is used).
+    """
+    space = getattr(space_or_evaluator, "space", space_or_evaluator)
+    kinds = list(getattr(space, "variable_kinds", []))
+    presence = [i for i, k in enumerate(kinds) if k == "presence"]
+    return {
+        "dim": int(space.dim),
+        "lower": [float(x) for x in space.lower],
+        "upper": [float(x) for x in space.upper],
+        "names": list(getattr(space, "parameter_names", [])),
+        "groups": list(getattr(space, "groups", [])),
+        "presence": presence,
+        "n_creases": int(getattr(space, "n_creases", len(getattr(space, "topology", [])))),
+    }
 
 
 def to_nevergrad_function(evaluator: OrigamiEvaluator) -> Callable[[np.ndarray], float]:

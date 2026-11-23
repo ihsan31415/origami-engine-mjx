@@ -26,7 +26,9 @@ print(space.lower[:3], space.upper[:3])  # (-0.98π, ...,) (+0.98π, ...)
 
 - The crease **endpoints** (`p1`, `p2`) are fixed; only the signed fold
   **angles** are variables. Moving endpoints can change the number of faces and
-  hinges, which the simulators cannot batch over.
+  hinges; [`DesignSpace`](SEARCH_SPACE.md) supports that, but the built-in
+  backends then score each topology separately (they already loop per
+  individual).
 - Only creases that become **spanning-tree hinges** are actuated. The
   remaining **loop-edge** creases become equality `connect` constraints and
   their angle is ignored by the dynamics. With `active_only=True` (the
@@ -37,6 +39,16 @@ print(space.lower[:3], space.upper[:3])  # (-0.98π, ...,) (+0.98π, ...)
 
 For the default pattern: 24 creases → 16 faces → 9 loop edges → **15 actuated
 hinges** → 15 variables.
+
+The genome is **configurable**: `SearchSpace` stays the default, while
+[`DesignSpace`](SEARCH_SPACE.md) can also vary the loop-edge angles, crease
+**endpoints** (geometry) and crease **presence** (a variable crease count), with
+presets, selection, equality/symmetry constraints and a JSON form. Its
+`angles_only` preset reproduces `SearchSpace` exactly, so nothing changes unless
+you opt in. When the topology can vary between individuals, the evaluator buckets
+them by `topology_signature` and reports the per-individual scoring path (see
+[EVALUATION.md](EVALUATION.md)). Seed an initial population with
+[`population`](POPULATIONS.md) before handing it to an optimizer.
 
 ### Build a space from your own pattern
 
@@ -265,6 +277,8 @@ print("best raw displacement:", evaluator.raw(best))
 ## See also
 
 - [INTEGRATIONS.md](INTEGRATIONS.md) — package overview and boundaries
+- [SEARCH_SPACE.md](SEARCH_SPACE.md) — the configurable `DesignSpace`
+- [POPULATIONS.md](POPULATIONS.md) — seeding an initial population
 - [EVALUATION.md](EVALUATION.md) — the raw fitness signal and its caveats
 - [RL.md](RL.md) — the reinforcement-learning environments
 - [`examples/04_optimize_es.py`](../examples/04_optimize_es.py) — runnable ES demo

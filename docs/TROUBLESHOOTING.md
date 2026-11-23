@@ -1,6 +1,6 @@
 # Troubleshooting
 
-> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · **Troubleshooting** · [Glossary](GLOSSARY.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
+> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · **Troubleshooting** · [Glossary](GLOSSARY.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [Search space](SEARCH_SPACE.md) · [Populations](POPULATIONS.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
 
 Common problems and their fixes, grouped by stage.
 
@@ -83,7 +83,15 @@ pip uninstall origami-engine-mjx      # remove         | uv pip uninstall origam
 
 **`RuntimeError: call reset() before step()`** — call `env.reset()` (or `OrigamiVectorEnv.reset()`) before the first `step()`.
 
-**`ValueError: genome has length N, expected M`** — the vector length does not match `SearchSpace.dim`. Remember the default pattern has 15 *actuated* variables, not 24 creases; build the space with the same `active_only` setting you use elsewhere. See [OPTIMIZATION_ES.md](OPTIMIZATION_ES.md).
+**`ValueError: genome has length N, expected M`** — the vector length does not match `SearchSpace.dim` / `DesignSpace.dim`. Remember the default pattern has 15 *actuated* variables, not 24 creases; build the space with the same `active_only` setting you use elsewhere. See [OPTIMIZATION_ES.md](OPTIMIZATION_ES.md).
+
+**`ValueError: ... selection matched no variables`** / **`conflicting selections`** — a `DesignSpace.select(...)` (or builder `select`) matched nothing, or two constraints act on the same variable. Fix the group/index/predicate, or drop one of the conflicting constraints. See [SEARCH_SPACE.md](SEARCH_SPACE.md#3-selecting-variables).
+
+**`DesignSpace` geometry gives `status != ok` or `path == "invalid"`** — a sampled genome can move endpoints so the crease set no longer tiles the sheet. The evaluator never crashes: the individual is reported `invalid` (or scored with the `error_policy` penalty) and `BatchResult.paths` says so. Repair genomes with `space.repair(...)`, keep them in bounds with `space.clip(...)`, or filter with `space.is_valid(...)`. See [SEARCH_SPACE.md](SEARCH_SPACE.md#8-validity-repair-and-rejection-sampling).
+
+**`ValueError: the RL environments need a fixed topology and an angle-only genome`** — `OrigamiEnv` / `OrigamiVectorEnv` share one fixed topology, so a `DesignSpace` that varies geometry, crease count or constraints is rejected. Use an angle-only `SearchSpace` (or `DesignSpace.angles_only()`) for RL, and the evaluator for geometry/count search. See [RL.md](RL.md).
+
+**`load_seeds` reports files as rejected** — malformed or non-tiling crease files are collected in `SeedSet.rejected` (`[(path, reason), ...]`) instead of raising. Check the reason (e.g. `"read error"`, `"invalid crease pattern"`) and the file's JSON. See [POPULATIONS.md](POPULATIONS.md#2-loading-seed-files).
 
 **The integration tests are skipped** — `test_integrations.py` / `test_rl_env.py` skip themselves when their optional dependencies are absent (`pytest.importorskip`, or the `requires_jax` guard in `test_integrations.py`), and simulation cases are marked `slow`. Install `[opt]`/`[rl]`/`[jax]` and run `pytest -q -m slow`.
 

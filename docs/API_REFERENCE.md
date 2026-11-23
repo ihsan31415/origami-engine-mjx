@@ -1,6 +1,6 @@
 # API Reference
 
-> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · **API Reference** · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
+> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · **API Reference** · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [Search space](SEARCH_SPACE.md) · [Populations](POPULATIONS.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
 
 Complete reference for the public API of `origami_engine_mjx` (version `1.0.0`). Sections follow the **Core modules** order in the [README](../README.md#core-modules-brief). Every name below is verified against the installed package.
 
@@ -469,6 +469,26 @@ score = engine.evaluate(creases, trajectory=(1.0, 0.0, 0.0))
 print(f"forward displacement: {score:.6f} m  (backend={result.backend})")
 ```
 
+## `origami_engine_mjx.integrations` — design space & populations
+
+The integration substrate is documented in depth in
+[INTEGRATIONS.md](INTEGRATIONS.md); the names added by the configurable search
+space and the population helpers are:
+
+- `integrations.design_space`: `DesignSpace`, `DesignSpaceBuilder`, `Variable`,
+  `ANGLE`, `COORD`, `PRESENCE` — see [SEARCH_SPACE.md](SEARCH_SPACE.md).
+- `integrations.population`: `Population`, `SeedSet`, `load_seeds`,
+  `interpolate`, `piecewise_path`, `random_barycentric`, `jitter`,
+  `random_population`, `lhs_population`, `sobol_population`,
+  `gaussian_population`, `deduplicate`, `diversity_filter`, `mixed_population`,
+  `save_population`, `load_population`, `export_creases_dir`,
+  `population_stats` — see [POPULATIONS.md](POPULATIONS.md).
+- `integrations.evaluator.topology_signature` and `EvalRecord.path` /
+  `BatchResult.paths` — the per-individual scoring path.
+
+All of these are re-exported from `origami_engine_mjx.integrations`; existing
+imports are unchanged.
+
 ## See also
 
 - [GETTING_STARTED.md](GETTING_STARTED.md) — installation (pip / uv / source) and first run
@@ -482,4 +502,6 @@ print(f"forward displacement: {score:.6f} m  (backend={result.backend})")
 - [MIGRATION.md](MIGRATION.md) — migrating from `origami-engine` (classic MuJoCo)
 - [INTEGRATIONS.md](INTEGRATIONS.md) — ES/RL/AI interfaces (`origami_engine_mjx.integrations`)
 - [OPTIMIZATION_ES.md](OPTIMIZATION_ES.md) — search space, evaluator, optimizer adapters
+- [SEARCH_SPACE.md](SEARCH_SPACE.md) — configurable `DesignSpace` (`integrations.design_space`)
+- [POPULATIONS.md](POPULATIONS.md) — population seeding (`integrations.population`)
 - [RL.md](RL.md) — Gymnasium and JAX-functional environments
