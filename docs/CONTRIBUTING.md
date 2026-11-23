@@ -29,7 +29,7 @@ uv pip install -e ".[dev,jax,warp]"
 |---|---|
 | `make help` | List all targets |
 | `make venv` / `make install` | Create `.venv` / install package + dev deps editable |
-| `make test` | `pytest -q` (coverage of `origami_engine_mjx` is configured via addopts) |
+| `make test` | `pytest -q` (uses `testpaths = ["tests_mjx"]`; coverage is not enabled by default) |
 | `make examples` | Run every `examples/0*.py` script |
 | `make lint` | `ruff check .` + `ruff format --check .` |
 | `make format` | `ruff format .` + `ruff check --fix .` |
@@ -60,7 +60,7 @@ Install once per clone; hooks then run on every commit:
 pre-commit install
 ```
 
-Configured hooks (`.pre-commit-config.yaml`): `ruff --fix`, `ruff-format`, and `mypy` (with `files: ^origami_engine_mjx/`, scoped to `origami_engine_mjx/`).
+Configured hooks (`.pre-commit-config.yaml`): `ruff --fix`, `ruff-format`, and `mypy` (with `files: ^origami_engine(_mjx)?/`, so it checks both packages).
 
 ## Code style & type checking
 
@@ -72,7 +72,7 @@ Configured hooks (`.pre-commit-config.yaml`): `ruff --fix`, `ruff-format`, and `
 ## Tests
 
 - Suite: `tests_mjx/` with fixtures in `tests_mjx/conftest.py` (`tiny_creases`).
-- Config: `testpaths = ["tests_mjx"]`, addopts enable `--cov=origami_engine_mjx --cov-report=term-missing --cov-report=xml`.
+- Config: `testpaths = ["tests_mjx"]`, `python_files = ["test_*.py"]`, and a `slow` marker. `pytest-cov` is installed via `[dev]`, so run `pytest --cov=origami_engine_mjx` if you want a coverage report.
 - Add or update tests for any new behavior: input validation, JSON round-trips, pattern validity reasons, evaluation semantics (order preservation, `error_policy`), and a smoke run with short `duration`.
 - Run `make lint && make typecheck && make test` before opening a PR.
 
@@ -82,7 +82,7 @@ Configured hooks (`.pre-commit-config.yaml`): `ruff --fix`, `ruff-format`, and `
 
 `.github/workflows/ci.yml` runs on push/PR to `main`:
 
-1. **lint-and-test** — matrix over Python 3.10 and 3.11: `ruff check .`, `ruff format --check .`, `mypy origami_engine_mjx --config-file pyproject.toml`, `pytest -q` (after `pip install -e ".[dev,jax]"`).
+1. **lint-and-test** — matrix over Python 3.10 and 3.11: `ruff check .`, `ruff format --check .`, `mypy origami_engine_mjx --config-file pyproject.toml`, `pytest -q` (after `pip install -e ".[dev]"`; JAX/MJX tests use `pytest.importorskip`, so they are skipped when the optional backend is not installed).
 2. **publish-to-pypi** — builds the sdist/wheel with `python -m build` and publishes via `pypa/gh-action-pypi-publish` (PyPI Trusted Publishing, OIDC).
 
 Note: The publish job only runs on pushes to `main` and requires Docker image pre-pull.
@@ -111,7 +111,8 @@ origami-engine-mjx/
 │   ├── 01_evaluate_cpu_jax.py
 │   ├── 02_evaluate_warp_gpu.py
 │   ├── 03_batch_population.py
-│   └── colab_gpu_validation.py  # GPU benchmark (Colab T4)
+│   ├── colab_gpu_validation.py  # GPU benchmark (Colab T4)
+│   └── 01_evaluate_reference.py … 05_plot_pattern.py  # legacy classic-MuJoCo demos
 ├── experiments/             # Prototype notebooks, timeline
 │   └── TIMELINE.md
 ├── origami_engine_mjx/      # MJX dual-backend package

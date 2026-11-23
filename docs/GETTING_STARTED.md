@@ -7,21 +7,29 @@ This guide covers how to install **origami-engine-mjx** and get started with the
 ## Quick start (Python)
 
 ```python
-from origami_engine_mjx import OrigamiEngine, load_default_creases
+from origami_engine_mjx import Crease, OrigamiEngine
 
 # CPU via MJX-JAX (works out of the box, no GPU needed)
 engine = OrigamiEngine(backend="jax")
-creases = load_default_creases()
+
+# Tiny 2-face pattern: MJX on CPU is slow for the full 16-face reference
+# mesh (~70 s/step), so the CPU quick start uses a minimal fold.
+creases = [
+    Crease((0.2, 0.0), (0.5, 0.5), -0.7853981633974483),
+    Crease((0.5, 0.5), (0.8, 0.0), -0.7853981633974483),
+]
 
 # Single simulation -> forward displacement (m)
-score = engine.evaluate(creases, duration=2.0)
-print(f"forward displacement: {score:.4f} m  (backend={engine.backend_name})")
+score = engine.evaluate(creases, duration=0.005, fold_duration=0.003, vibrate=False)
+print(f"forward displacement: {score:.6f} m  (backend={engine.backend_name})")
 
-# Batch population evaluation
+# Population evaluation (sequential; see EVALUATION.md)
 population = [creases, creases, creases]
-result = engine.evaluate_population(population, duration=2.0)
+result = engine.evaluate_population(population, duration=0.005, fold_duration=0.003, vibrate=False)
 print(result.scores)
 ```
+
+For the full 16-face `load_default_creases()` pattern, run on a GPU (see [COLAB_GPU.md](COLAB_GPU.md)) or accept long CPU runtimes.
 
 ## Installation
 
@@ -32,7 +40,9 @@ The package is available from PyPI. Choose the installation that matches your ne
 | Core (geometry, patterns, XML generation — no GPU needed) | `pip install origami-engine-mjx` |
 | + MJX-JAX backend (CPU works out of the box) | `pip install 'origami-engine-mjx[jax]'` |
 | + MJX-Warp backend (requires NVIDIA CUDA GPU) | `pip install 'origami-engine-mjx[warp]'` |
-| Everything (JAX + Warp + rendering) | `pip install 'origami-engine-mjx[all]'` |
+| Everything (JAX + Warp + dev tooling) | `pip install 'origami-engine-mjx[all]'` |
+
+The `render` extra only pulls in `imageio[ffmpeg]` for the **legacy** `origami-engine` scripts; this package ships no renderer.
 
 ### Development install (editable, with all deps)
 
@@ -80,19 +90,24 @@ engine_a = OrigamiEngine(backend="auto")
 ## Your first simulation (CPU, MJX-JAX)
 
 ```python
-from origami_engine_mjx import OrigamiEngine, load_default_creases
+from origami_engine_mjx import Crease, OrigamiEngine, compute_forward_displacement
 
 engine = OrigamiEngine(backend="jax")
-creases = load_default_creases()
+creases = [
+    Crease((0.2, 0.0), (0.5, 0.5), -0.7853981633974483),
+    Crease((0.5, 0.5), (0.8, 0.0), -0.7853981633974483),
+]
 
 # Single simulation -> forward displacement (m)
-score = engine.evaluate(creases, duration=2.0, fold_duration=3.0, vibrate=False)
+score = engine.evaluate(creases, duration=0.005, fold_duration=0.003, vibrate=False)
 print(f"forward displacement: {score:.6f} m  (backend={engine.backend_name})")
 
 # Or via the engine.run() / compute_forward_displacement() pipeline:
-result = engine.run(creases, duration=2.0)
-displacement = result.final_centroid[0] - result.initial_centroid[0]  # crude +x estimate
+result = engine.run(creases, duration=0.005, fold_duration=0.003, vibrate=False)
+displacement = compute_forward_displacement(result, trajectory=(1.0, 0.0))
 ```
+
+Use the full reference pattern (`load_default_creases()`) on a GPU; on CPU it costs roughly 70 s per 1 ms step for the 16-face mesh model (see [BACKENDS.md](BACKENDS.md#performance)).
 
 ## Your first simulation (GPU, MJX-Warp on Google Colab T4)
 

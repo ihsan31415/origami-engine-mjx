@@ -11,12 +11,12 @@ The following table maps classic `origami_engine` functions to `origami_engine_m
 | Old (`origami_engine`) | New (`origami_engine_mjx`) | Notes |
 |---|---|---|
 | `dynamics.run_simulation(creases, ...)` using `mujoco.mj_step` in-place | `OrigamiEngine(backend="jax").run(creases, ...)` using MJX immutable state | `duration`, `fold_duration`, `vibrate`, `amp_x`, `amp_z`, `freq_hz` map directly |
-| `evaluation.evaluate_individual(creases, ...)` (classic MuJoCo) | `evaluate_individual(creases, ..., backend="jax")` | Same params; new `backend` param replaces legacy `workers` |
-| `evaluation.evaluate_population(pop, ...)` (classic MuJoCo) | `evaluate_population(pop, ..., backend="jax", batch_size=N)` | `workers=N` → `batch_size=N`; Warp-native batching replaces ProcessPoolExecutor |
+| `evaluation.evaluate_individual(creases, ...)` (classic MuJoCo) | `evaluate_individual(creases, ..., backend="jax")` | Same params; the new `backend` param selects MJX-JAX or MJX-Warp (legacy had no backend selector) |
+| `evaluation.evaluate_population(pop, ...)` (classic MuJoCo) | `evaluate_population(pop, ..., backend="jax")` | `workers` has no equivalent; both MJX backends loop sequentially |
 | `model.generate_xml` imported `require_mujoco` | `model.generate_xml` is pure XML generation (no MuJoCo needed) | Same function signature; MuJoCo import guard removed |
 | `render_individual.py` renders via `mujoco.Renderer` | unchanged (classic MuJoCo still used for rendering) | Legacy script still works with classic `MjModel`/`MjData` |
-| `evaluate_population(..., workers=N)` (ProcessPoolExecutor) | `engine.evaluate_population(..., batch_size=N)` (backend-native batching) | Per-individual loop in JAX; native GPU batched in Warp |
-| `origami-render` CLI (entry point `origami_engine.render_individual:main`) | does not exist in `origami-engine-mjx` | See TROUBLESHOOTING.md for workarounds |
+| `evaluate_population(..., workers=N)` (ProcessPoolExecutor) | `engine.evaluate_population(..., batch_size=N)` | `workers` does not exist; `batch_size` is accepted but currently ignored (sequential per-individual loops) |
+| `origami-render` CLI (entry point `origami_engine.render_individual:main`) | does not exist in `origami-engine-mjx` | See [TROUBLESHOOTING.md](TROUBLESHOOTING.md#rendering-and-video) for workarounds |
 
 ## API mapping examples
 
@@ -36,7 +36,9 @@ from origami_engine_mjx import OrigamiEngine, evaluate_individual, evaluate_popu
 
 engine = OrigamiEngine(backend="jax")  # or "warp" on GPU
 score = evaluate_individual(creases, duration=2.0, backend="jax")
-scores = evaluate_population(pop, duration=2.0, backend="jax", batch_size=4)
+scores = evaluate_population(pop, duration=2.0, backend="jax")
+# NOTE: legacy "workers" does not exist. batch_size is accepted but currently
+# ignored by both backends; population scoring always uses +x displacement.
 # or via the engine object:
 score = engine.evaluate(creases, duration=2.0)
 result = engine.evaluate_population(pop, duration=2.0)
@@ -50,7 +52,7 @@ result = engine.evaluate_population(pop, duration=2.0)
 | **Step function** | `mujoco.mj_step(model, data)` returns `data` in-place | `mjx.step(model, data)` returns new state; Warp `mjw.step` struct mutate |
 | **Control arrays** | NumPy arrays OK | Must pass `jax.numpy` arrays to MJX controls; mixing causes `AttributeError` |
 | **Name lookups** | `model.joint("table_x").qposadr` etc. | Use classic `MjModel` kept in the bundle; MJX model has no `.joint()` views |
-| **Population `workers`** | `ProcessPoolExecutor` with `workers=N` parameter | Not applicable — JAX backend evaluates per-individual; Warp uses native `batch_size` |
+| **Population `workers`** | `ProcessPoolExecutor` with `workers=N` parameter | Does not exist — both MJX backends evaluate sequentially; `batch_size` is accepted but currently ignored |
 | **Render video** | `make render` → `individual_simulation.mp4` | MJX package has no renderer; use classic MuJoCo or copy state via `mjx.get_data` |
 | **Constants sign convention** | `M = π/4` = valley, `V = -π/4` = mountain | Same constants inherited; documented in [CREASE_FORMAT.md](CREASE_FORMAT.md) |
 | **`origami-render` entry point** | installed as `origami-render` CLI | removed from `pyproject.toml` (module doesn't exist); see [TROUBLESHOOTING.md](TROUBLESHOOTING.md) |

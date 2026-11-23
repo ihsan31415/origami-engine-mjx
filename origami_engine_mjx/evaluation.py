@@ -25,7 +25,10 @@ def evaluate_individual(
     backend: BackendName = "jax",
     return_details: bool = False,
 ):
-    """Evaluate one crease configuration and return net forward displacement."""
+    """Evaluate one crease configuration and return net forward displacement.
+
+    A non-finite displacement is returned as-is (no finite-score check).
+    """
     engine = OrigamiEngine(backend=backend)
     result = engine.run(
         creases,
@@ -63,7 +66,13 @@ def evaluate_population(
     batch_size: int | None = None,
     error_policy: str = "raise",
 ) -> list[float]:
-    """Evaluate a population of crease patterns using the given backend."""
+    """Evaluate a population of crease patterns using the given backend.
+
+    ``trajectory`` is validated but ignored by the built-in backends (scores
+    are always +x), and ``batch_size`` is currently ignored.  With
+    ``error_policy="raise"`` any non-finite score raises ``RuntimeError``;
+    any other value returns the raw scores.
+    """
     engine = OrigamiEngine(backend=backend)
     pop_result = engine.evaluate_population(
         individuals,

@@ -20,9 +20,9 @@ Common problems and their fixes, grouped by stage.
 
 **`RuntimeError: MJX-JAX backend requires 'mujoco-mjx' and 'jax'.**`**** — install with `pip install 'origami-engine-mjx[jax]'`. Same for Warp: `pip install 'origami-engine-mjx[warp]'`.
 
-## Headless / no-display rendering
+## Rendering and video
 
-`origami-render` and `trace_simulation` need OpenGL. On a server without a display, set one of:
+`origami-engine-mjx` ships **no renderer and no CLI**. MJX-JAX/MJX-Warp models cannot be drawn directly by `mujoco.Renderer`; copy state back to classic MuJoCo (or keep using the legacy `origami-engine` renderer), which needs OpenGL. On a server without a display, set one of:
 
 ```bash
 export MUJOCO_GL=osmesa    # software rendering (pip install osmesa is not needed; mujoco bundles it)
@@ -50,7 +50,7 @@ See [CREASE_FORMAT.md](CREASE_FORMAT.md) for the full format rules and the JSON 
 
 **`FloatingPointError: unstable simulation: non-finite joint coordinates produced.`** — the fold exploded (usually extreme target angles, too-long `duration`, or aggressive vibration). Try: smaller fold angles (`|angle| ≤ MAX_FOLD = 0.98π` is enforced, but smaller is more stable), shorter `duration`, `vibrate=False` or smaller `amp_z`/`freq_hz`, or `generate_xml(..., coll_thick=...)` thin-collision mode.
 
-**Simulation is slow** — cost is `duration / 0.001` steps (8 s ⇒ 8000 step calls) plus mesh contact. Use short `duration` while iterating; parallelize populations with `evaluate_population(..., backend=..., batch_size=...)`.
+**Simulation is slow** — cost is `duration / 0.001` steps (8 s ⇒ 8000 step calls) plus mesh contact. Use short `duration` while iterating. Population evaluation is **sequential** in both backends (`batch_size` is accepted but currently ignored), so splitting work across independent processes or using a GPU is the practical way to increase throughput.
 
 ## PyPI install vs source checkout
 
@@ -59,7 +59,8 @@ See [CREASE_FORMAT.md](CREASE_FORMAT.md) for the full format rules and the JSON 
 | `import origami_engine_mjx`, `OrigamiEngine` | identical | identical |
 | `load_default_creases()` | reads the packaged `origami_engine_mjx/crease_patterns/reference_miura_4x4.json` | same file (byte-identical to repo-root `crease_patterns/reference_miura_4x4.json`) |
 | `tests/`, `examples/`, `Makefile` targets | not shipped | available (`make test`, `make examples`, …) |
-| `plot_pattern` output / video files | written to the current working directory | written to the repo root (Makefile runs from there) |
+| `plot_pattern` output | caller saves `plt.gcf()` wherever they choose | same behavior |
+| Video files | not produced by this package | not produced by this package |
 | Ruff / mypy / pytest | identical | identical |
 | `generate_xml` output | identical | identical |
 

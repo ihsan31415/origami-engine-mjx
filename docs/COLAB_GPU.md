@@ -16,25 +16,22 @@ Colab's T4 has CUDA; `warp-lang` will initialise `cuda:0` automatically.
 
 ## Validation checklist
 
-Run `examples/colab_gpu_validation.py`, which checks:
+Run `examples/colab_gpu_validation.py`, which prints (and checks):
 
-1. Warp backend availability (`WarpBackend().is_available()` must be `True`).
-2. MJX-Warp model conversion (`mjw.make_model`) for the reference Miura pattern.
-3. State init + individual `mjw.step` calls (finite `qpos`).
-4. Actuation ramp + table vibration drive.
-5. Contact/constraint handling (paper geoms collide with table; equality constraints hold).
-6. Batched population evaluation at sizes 32 / 128 / 256 / 512 / 1024.
-7. MJX-JAX on GPU (`jax.devices()` shows `gpu`) for comparison.
-8. GPU memory consumption (`nvidia-smi` or `jax.devices()[0].memory_stats()`).
-9. Steady-state throughput (steps/s, populations/s), excluding JIT/compile warm-up.
+1. `available_backends()`, `WarpBackend().is_available()` must be `True`, and `device_info()`.
+2. `jax.devices()` / `jax.default_backend()` — confirms JAX sees the GPU.
+3. MJX-Warp model conversion (`mjw.make_model`) plus a short `mjw.step` run; `final_centroid` must be finite.
+4. The same run on MJX-JAX/GPU for a numerical comparison.
+5. Population throughput at sizes 32 / 128 / 256 with `evaluate_population` (one warm-up run, then timed), including a `batch_size`-ignored note: both backends currently loop per individual.
+6. GPU memory — `jax.devices()[0].memory_stats()` and `nvidia-smi --query-gpu=memory.used,memory.total`.
 
 ## What to record
 
-- Compile/warm-up time per backend.
-- Simulation steps per second at steady state.
-- Population evaluations per second at each batch size.
-- GPU memory high-water mark.
-- Numerical comparison vs classic MuJoCo on the same model (same initial conditions, duration).
+- Compile/warm-up time per backend (the script runs one warm-up population pass before timing).
+- Simulation wall time for the 50 ms single run (Warp and JAX).
+- Population evaluations per second at each population size.
+- GPU memory high-water mark (JAX memory stats + `nvidia-smi`).
+- Numerical comparison of `final_centroid` vs classic MuJoCo on the same model (same initial conditions, duration).
 
 Paste results into a Colab notebook cell or a `BENCHMARKS.md` and link from the PR.
 
@@ -42,11 +39,12 @@ Paste results into a Colab notebook cell or a `BENCHMARKS.md` and link from the 
 
 The validation script `examples/colab_gpu_validation.py` performs these steps in order:
 
-1. **Environment** — print `available_backends()`, `WarpBackend().is_available()`, device info, and `jax.devices()`.
+1. **Environment** — print `available_backends()`, `WarpBackend().is_available()`, `device_info()`, and `jax.devices()`.
 2. **Warp single sim** — `OrigamiEngine(backend="warp").run(creases, duration=0.05, fold_duration=0.02, vibrate=True)`; assert finite `final_centroid`.
 3. **JAX on GPU single sim** — `OrigamiEngine(backend="jax").run(...)` with the same parameters, for numerical comparison.
-4. **Population evaluation** — `evaluate_population` at each batch size, time each run.
-5. **Report** — print all timings, device info, and any errors.
+4. **Population throughput** — `evaluate_population` at sizes 32 / 128 / 256 (one warm-up pass, then timed) for each available backend.
+5. **GPU memory** — `jax.devices()[0].memory_stats()` and `nvidia-smi`.
+6. **Report** — print all timings, device info, and any errors.
 
 To run manually in a Colab notebook:
 
@@ -61,16 +59,16 @@ To run manually in a Colab notebook:
 
 The script prints a structured report. On a correctly configured T4:
 
-- `warp is_available: True`
+- `available backends: ['jax', 'warp']` and `warp is_available: True`
 - `jax devices: [CudaDevice(id=0)]` (or similar)
-- Finite centroids for all runs
-- Per-batch-size timings (record these in your PR)
+- Finite `final_centroid` for both the Warp and JAX runs
+- Per-population-size wall times and throughput (record these in your PR)
 
 ## Troubleshooting GPU issues
 
 - **`warp is_available: False`** — Warp or `mujoco-warp` not installed, or no CUDA device. Check `nvidia-smi` in the Colab runtime (`Runtime → Change runtime type → T4 GPU`).
 - **JAX uses CPU on GPU machine** — set `JAX_PLATFORMS=cuda` (or ensure `jax[cuda12]` is installed). Check `jax.devices()`.
-- **Out of memory at large batch sizes** — reduce `batch_size` or `n` in the validation script.
+- **Out of memory at large population sizes** — reduce `n` in the validation script (the loop is sequential, so this means per-individual model size; large Miura meshes are the main cost).
 - **Numerical mismatch vs classic MuJoCo** — MJX uses float32; small differences are expected (see [BACKENDS.md](BACKENDS.md)).
 
 ## See also

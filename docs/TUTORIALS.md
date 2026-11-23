@@ -55,12 +55,15 @@ print(result.info["n_faces"], "faces,", result.info["n_hinges"], "hinges")
 
 | Field | Meaning |
 |---|---|
-| `result.model` | Backend-specific model handle (MJX pytree or Warp model dict) |
-| `result.data` | Backend-specific data state |
+| `result.model` | Backend bundle dict (`{"mjx_model", "classic_model", "info"}` for JAX; `{"warp_model", "classic_model", "info"}` for Warp) |
+| `result.data` | Backend-specific data state (final step) |
 | `result.pattern` | The validated `Pattern` |
 | `result.info` | `{"hinges": [...], "targets": np.ndarray, "n_faces", "n_hinges", "n_loops"}` |
 | `result.initial_centroid` / `result.final_centroid` | 2D paper centroid (mean XY of all non-table geoms) before/after |
 | `result.backend` | `"jax"` or `"warp"` |
+| `result.extra` | Reserved metadata dict (currently empty) |
+
+`duration=8.0` on the full 16-face reference mesh is very slow on CPU MJX; use the tiny 2-face pattern or a GPU for quick experiments (see [BACKENDS.md](BACKENDS.md)).
 
 Parameters worth knowing: `duration` (8.0 s of simulated time), `fold_duration` (3.0 s smoothstep ramp over which actuator targets go from 0 to full), `vibrate` (True), `amp_x`/`amp_z` (0.0 / 0.0013 m), `freq_hz` (75.0 Hz). See [SIMULATION.md](SIMULATION.md) for the internals.
 
@@ -84,11 +87,19 @@ print(score)  # forward displacement in meters (float)
 Ask for the details dict instead of just the float:
 
 ```python
-details = engine.evaluate(creases, duration=8.0, return_details=True)
-# keys: displacement, initial_centroid, final_centroid, duration, trajectory, n_faces, n_loops
+from origami_engine_mjx import evaluate_individual
+
+details = evaluate_individual(
+    creases,
+    duration=8.0,
+    trajectory=(1.0, 0.0, 0.0),
+    return_details=True,
+)
+# keys: displacement, initial_centroid, final_centroid,
+#       duration, backend, n_faces, n_loops
 ```
 
-`trajectory` accepts a 2D or 3D direction vector, or an `(N, 2)/(N, 3)` waypoint array (direction = last − first), normalized internally. See [EVALUATION.md](EVALUATION.md).
+`OrigamiEngine.evaluate(...)` always returns a `float`; use `evaluate_individual(..., return_details=True)` for the dict. `trajectory` accepts a 2- or 3-element direction vector. A 2-vector is used **without normalization** (the score scales with its length); a 3-vector is normalized. `(N, 2)` / `(N, 3)` waypoint arrays are not supported. See [EVALUATION.md](EVALUATION.md#forward-displacement).
 
 ## Tutorial 4 — Save and load crease patterns as JSON
 
@@ -140,7 +151,8 @@ from origami_engine_mjx.evaluation import evaluate_population
 creases = load_default_creases()
 population = [creases, creases, creases]
 
-# Sequential evaluation (backends run individually; batch support varies)
+# Both backends evaluate individuals sequentially; there is no process pool.
+# Scores are always +x displacement in the current implementation.
 scores = evaluate_population(population, duration=4.0, backend="jax", error_policy="raise")
 # error_policy="nan" returns float('nan') for failed individuals instead of raising
 
@@ -148,7 +160,7 @@ best = max(zip(scores, population), key=lambda t: t[0])
 print("best fitness:", best[0])
 ```
 
-Results keep the input order. See [EVALUATION.md](EVALUATION.md) for parallel semantics and a GA loop sketch.
+Results keep the input order. `trajectory` is validated but currently ignored by population scoring (always +x), and `batch_size` has no effect yet — see [EVALUATION.md](EVALUATION.md#current-behaviour-caveats). For a non-+x fitness direction, score individuals with `evaluate_individual(..., trajectory=...)`.
 
 Runnable version: `python examples/04_evaluate_population.py`.
 

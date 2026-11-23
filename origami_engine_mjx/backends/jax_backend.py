@@ -2,9 +2,11 @@ from __future__ import annotations
 
 """MJX-JAX simulation backend.
 
-Uses ``mujoco.mjx`` (the JAX implementation of MuJoCo) for differentiable,
-JIT-compiled simulation.  Runs on CPU locally and on GPU/TPU through JAX
-backends.  Supports ``jax.jit``, ``jax.vmap``, and ``jax.lax.scan``.
+Uses ``mujoco.mjx`` (the JAX implementation of MuJoCo).  Runs on CPU locally
+and on GPU/TPU through JAX backends.  State is an immutable JAX pytree, so
+callers can apply ``jax.jit``/``jax.vmap``/``jax.lax.scan`` themselves; this
+module steps eagerly by default because JIT-compiling ``mjx.step`` on
+mesh-contact models is prohibitively slow.
 """
 
 from typing import Any
@@ -34,7 +36,7 @@ except Exception as exc:  # noqa: BLE001
 
 
 class JaxBackend(SimulationBackend):
-    """MJX-JAX backend: differentiable, JIT-compiled, vmap-able."""
+    """MJX-JAX backend: JAX pytree state, eager ``mjx.step`` by default."""
 
     name = "jax"
 
@@ -163,7 +165,7 @@ class JaxBackend(SimulationBackend):
         )
 
     # ------------------------------------------------------------------
-    # Batch population evaluation (jax.vmap over individuals)
+    # Batch population evaluation (sequential per-individual loop)
     # ------------------------------------------------------------------
 
     def run_batch(
@@ -177,12 +179,12 @@ class JaxBackend(SimulationBackend):
         freq_hz: float = 75.0,
         batch_size: int | None = None,
     ) -> np.ndarray:
-        """Evaluate a population of crease patterns.
+        """Evaluate a population of crease patterns sequentially.
 
-        For MJX-JAX, each individual gets its own model (different topology),
-        so we loop over individuals but JIT-compile each simulation.  True
-        ``jax.vmap`` batching applies when individuals share the same model
-        topology (same number of faces/hinges) — handled by ``run_batch_vmap``.
+        For MJX-JAX each individual gets its own model (different topology),
+        so this loops over individuals and calls :meth:`run` eagerly.  There
+        is no vmap or JIT batching in this path, and ``batch_size`` is
+        ignored.  Scoring is always the +x centroid displacement.
         """
         scores = []
         for i, creases in enumerate(population):

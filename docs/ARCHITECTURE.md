@@ -61,9 +61,9 @@ SimulationResult(initial_centroid, final_centroid, ...) → fitness = projection
 3. **Generate XML**: `generate_xml()` builds MJCF:
    - One body per face, triangulated mesh, `<freejoint>` on root.
    - Each hinge has `position` actuator with ramped target over `fold_duration`.
-   - Support table with kinematic vibration joints (`table_x`, `table_z`).
+   - Support table with kinematic vibration joints (`table_x`, `table_z).
 
-4. **Backend model**: `MjxBackend.build_model()` or `WarpBackend.build_model()`:
+4. **Backend model**: `JaxBackend.build_model()` / `WarpBackend.build_model()` (from the backend registry):
    - Parses MJCF with classic `MjModel.from_xml_string()` for name lookups.
    - Converts to MJX pytree (`mjx.put_model`) or Warp model (`mjw.make_model`).
 

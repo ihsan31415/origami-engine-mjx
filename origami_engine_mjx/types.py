@@ -43,8 +43,8 @@ class Pattern:
 class SimulationResult:
     """Final simulation state plus the centroid bookkeeping used for scoring.
 
-    ``model`` and ``data`` are backend-specific objects (MJX-JAX Model/Data,
-    MJX-Warp model/state, or classic MuJoCo MjModel/MjData for rendering).
+    ``model`` is a backend bundle dict (``mjx_model``/``warp_model`` plus
+    ``classic_model`` and ``info``); ``data`` is the backend-native state.
     """
 
     model: Any
@@ -59,7 +59,11 @@ class SimulationResult:
 
 @dataclass
 class PopulationResult:
-    """Result of batch population evaluation."""
+    """Result of population evaluation.
+
+    ``scores`` currently always holds the +x centroid displacement, because
+    both built-in backends ignore the requested trajectory.
+    """
 
     scores: np.ndarray
     backend: str

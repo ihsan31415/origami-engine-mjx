@@ -30,6 +30,11 @@ def _straight_pieces(g):
 def build_pattern(creases):
     """Reconstruct polygonal faces and the spanning-tree hinge graph.
 
+    ``creases`` must be a sequence of :class:`~origami_engine_mjx.types.Crease`
+    objects (run :func:`~origami_engine_mjx.serialization.normalize_creases`
+    first for dicts or JSON paths; this function reads ``.p1``/``.p2``
+    directly).
+
     Returns a :class:`~origami_engine_mjx.types.Pattern` whose ``valid`` flag
     reports whether the creases tile the square sheet without sliver faces or
     disconnected panels.

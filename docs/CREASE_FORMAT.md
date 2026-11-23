@@ -25,11 +25,13 @@ The package constants `M = +π/4` and `V = −π/4` (`origami_engine_mjx/constan
 
 ## Accepted input shapes
 
-Every public entry point (`engine.run`, `engine.evaluate`, `evaluate_individual`, `evaluate_population`, `build_pattern` via `normalize_creases`, …) accepts any of:
+The simulation entry points — `OrigamiEngine.run`, `OrigamiEngine.evaluate`, `OrigamiEngine.evaluate_population`, `evaluate_individual`, `evaluate_population` — accept any of:
 
-1. A **list of `Crease` objects**
-2. A **list of dicts** `{"p1": [x, y], "p2": [x, y], "angle": <radians>}`
+1. A **list or tuple of `Crease` objects**
+2. A **list or tuple of dicts** `{"p1": [x, y], "p2": [x, y], "angle": <radians>}`
 3. A **path to a JSON file** (string or `pathlib.Path`) — loaded and schema-validated by `load_creases_from_json`
+
+They normalize internally via `normalize_creases`. `build_pattern`, `generate_xml`, and `plot_pattern` do **not** normalize: pass them a sequence of `Crease` objects (for example `normalize_creases(raw)`), because `build_pattern` reads `crease.p1`/`crease.p2` directly and raises `AttributeError` for dicts. A JSON path is also rejected by `build_pattern`.
 
 ```python
 from origami_engine_mjx import DEFAULT_PATTERN_JSON, Crease, normalize_creases
@@ -40,7 +42,7 @@ normalize_creases("crease_patterns/reference_miura_4x4.json")  # JSON path (repo
 normalize_creases(DEFAULT_PATTERN_JSON)  # packaged copy (any install)
 ```
 
-Errors raised by `normalize_creases`: `ValueError` for `None`, empty lists, dicts with missing keys, or unsupported item types; `TypeError` if the input is not a list/tuple/path.
+Errors raised by `normalize_creases`: `ValueError` for `None`, empty sequences, dicts with missing keys, or unsupported element types; `TypeError` if the input is not a list/tuple/path.
 
 ## JSON file format
 
@@ -60,7 +62,7 @@ Two forms are allowed (`oneOf` in the schema):
 }
 ```
 
-- `angle_unit`: one of `"radian"`, `"radians"`, `"rad"`, `"degree"`, `"degrees"`, `"deg"` (case-insensitive at load). **Default/omitted = radians.** Degrees are converted with `np.deg2rad`.
+- `angle_unit`: one of `"radian"`, `"radians"`, `"rad"`, `"degree"`, `"degrees"`, `"deg"` (the schema enum is lowercase; the loader lower-cases the parsed string for its degree check). **Default/omitted = radians.** Degrees are converted with `np.deg2rad`.
 - `creases`: array, `minItems: 1`.
 
 **Form B — bare list of creases** (angles are **radians**):

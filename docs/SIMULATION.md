@@ -41,11 +41,11 @@ Global settings emitted into the XML:
 
 ### Bodies and joints — one body per face
 
-- Each face `i` becomes `<body name="face_{i}">` containing a triangulated **triangular-prism mesh** per triangle (visual `mesh` geoms with density `PAPER_MASS / (S² · 2·THICK) = 1000`, `contype=conaffinity=1`, `condim=3`, friction `MU_PAPER 0.005 0.0001 = 0.3 0.005 0.0001`). Materials alternate `paper_A` / `paper_B` by tree depth for visualization.
+- Each face `i` becomes `<body name="face_{i}">` containing one triangular-prism **mesh geom per triangle** (visual `mesh` geoms with density `PAPER_MASS / (S² · 2·THICK) = 1000`, `contype=conaffinity=1`, `condim=3`, friction `"0.3 0.005 0.0001"` — i.e. `MU_PAPER = 0.3` plus tangential/rolling terms). Materials alternate `paper_A` / `paper_B` by tree depth for visualization.
 - The **root face** gets a `<freejoint name="root"/>` and is placed at its centroid, offset to `z = Z0 = THICK + 0.001`.
 - Every non-root face is attached to its parent through the tree edge:
   - `<joint name="crease_{h}" type="hinge">` — axis along the shared edge, `range="±π"`, damping `DAMPING=0.003`, armature 0.001. This is the fold hinge.
-  - Two `<joint name="stretch_a_{h}" / stretch_n_{h}" type="slide">` spring joints along the edge direction and its in-plane normal (`stiffness=STRETCH_K=5e4`, `damping=STRETCH_DAMP=50`, `range="±STRETCH_MAX=±1e-4"`) that keep the panel edges from stretching.
+  - Two `<joint name="stretch_a_{h}" ...>` / `<joint name="stretch_n_{h}" ...>` slide joints along the edge direction and its in-plane normal (`stiffness=STRETCH_K=5e4`, `damping=STRETCH_DAMP=50`, `range="±STRETCH_MAX=±1e-4"`) that keep the panel edges from stretching.
 - **Loop edges** (edges not in the spanning tree) are closed with `<equality><connect body1 body2 anchor=... solref="0.005 1" solimp="0.95 0.99 0.001"/></equality>` at both endpoints, so the paper stays a single connected sheet.
 
 ### Actuators — fold targets
@@ -118,7 +118,7 @@ Defined in `origami_engine_mjx/constants.py` and re-exported at package level:
 - MJX-JAX on CPU is slow for mesh-contact models: ~70 s/step for the 16-face Miura reference model, ~1.4 s/step for a 2-face model (measured locally). Use short durations on CPU; use GPU for real workloads.
 - Cost scales with `duration / timestep` (1 s ⇒ 1000 steps) and with the number of faces (each face = one body + meshes).
 - JIT compilation of `mjx.step` is expensive on CPU; the JAX backend runs eager by default (`jit=False`).
-- `evaluate_population(..., batch_size=N)` delegates to the backend's `run_batch`; see [EVALUATION.md](EVALUATION.md).
+- `evaluate_population(..., batch_size=N)` delegates to the backend's `run_batch`, which currently loops per individual and ignores `batch_size`; see [EVALUATION.md](EVALUATION.md#current-behaviour-caveats).
 
 ## Rendering
 
