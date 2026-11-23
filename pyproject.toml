@@ -56,9 +56,6 @@ all = [
     "origami-engine-mjx[jax,warp,render,dev]",
 ]
 
-[project.scripts]
-origami-render-mjx = "origami_engine_mjx.render_individual:main"
-
 [tool.setuptools.packages.find]
 include = ["origami_engine_mjx*"]
 

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.org/origami-simulator/crease_pattern.schema.json",
   "title": "Origami crease pattern",
-  "description": "Input format accepted by origami_engine.load_creases_from_json.",
+  "description": "Input format accepted by origami_engine_mjx.load_creases_from_json.",
   "oneOf": [
     {
       "type": "object",

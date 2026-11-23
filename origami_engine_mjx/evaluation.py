@@ -10,7 +10,7 @@ import numpy as np
 
 from .constants import VIB_AMP_X, VIB_AMP_Z, VIB_FREQ
 from .engine import OrigamiEngine, compute_forward_displacement
-from .types import BackendName, PopulationResult
+from .types import BackendName
 
 
 def evaluate_individual(
@@ -62,7 +62,7 @@ def evaluate_population(
     backend: BackendName = "jax",
     batch_size: int | None = None,
     error_policy: str = "raise",
-) -> list[float] | PopulationResult:
+) -> list[float]:
     """Evaluate a population of crease patterns using the given backend."""
     engine = OrigamiEngine(backend=backend)
     pop_result = engine.evaluate_population(

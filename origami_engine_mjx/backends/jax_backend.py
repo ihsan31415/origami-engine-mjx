@@ -19,10 +19,6 @@ from ..types import SimulationResult
 from .base import SimulationBackend
 
 # Lazy imports — JAX/MJX are optional dependencies.
-jax = None
-jnp = None
-mjx = None
-MjModel = None
 _IMPORT_ERROR: BaseException | None = None
 
 try:
@@ -30,6 +26,10 @@ try:
     import jax.numpy as jnp
     from mujoco import MjModel, mjx
 except Exception as exc:  # noqa: BLE001
+    jax = None  # type: ignore[assignment]
+    jnp = None  # type: ignore[assignment]
+    mjx = None  # type: ignore[assignment]
+    MjModel = None  # type: ignore[assignment]
     _IMPORT_ERROR = exc
 
 

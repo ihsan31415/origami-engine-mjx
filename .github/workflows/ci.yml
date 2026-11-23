@@ -36,7 +36,7 @@ jobs:
 
       - name: Run mypy type check
         run: |
-          mypy origami_engine --config-file pyproject.toml
+          mypy origami_engine_mjx --config-file pyproject.toml
 
       - name: Run pytest
         run: |

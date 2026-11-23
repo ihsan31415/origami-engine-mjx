@@ -30,7 +30,7 @@ def _straight_pieces(g):
 def build_pattern(creases):
     """Reconstruct polygonal faces and the spanning-tree hinge graph.
 
-    Returns a :class:`~origami_engine.types.Pattern` whose ``valid`` flag
+    Returns a :class:`~origami_engine_mjx.types.Pattern` whose ``valid`` flag
     reports whether the creases tile the square sheet without sliver faces or
     disconnected panels.
     """

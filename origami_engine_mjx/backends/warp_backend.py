@@ -21,9 +21,6 @@ from ..types import SimulationResult
 from .base import SimulationBackend
 
 # Lazy imports.
-mujoco = None
-mjw = None
-MjModel = None
 _IMPORT_ERROR: BaseException | None = None
 
 try:
@@ -31,6 +28,9 @@ try:
     import mujoco.warp as mjw
     from mujoco import MjModel
 except Exception as exc:  # noqa: BLE001
+    mujoco = None  # type: ignore[assignment]
+    mjw = None  # type: ignore[assignment]
+    MjModel = None  # type: ignore[assignment]
     _IMPORT_ERROR = exc
 
 

@@ -34,11 +34,11 @@ def plot_pattern(creases: list[Crease], pat: Pattern | None = None) -> None:
     Parameters
     ----------
     creases:
-        List of :class:`~origami_engine.types.Crease` objects describing the
-        crease segments.
+        List of :class:`~origami_engine_mjx.types.Crease` objects describing
+        the crease segments.
     pat:
-        Optional :class:`~origami_engine.types.Pattern` object returned by
-        :func:`~origami_engine.geometry.build_pattern`.  When provided and
+        Optional :class:`~origami_engine_mjx.types.Pattern` object returned by
+        :func:`~origami_engine_mjx.geometry.build_pattern`.  When provided and
         valid, face indices and loop-edge markers are added to the axes and
         the title includes the face/loop-edge counts.
 

@@ -45,7 +45,7 @@ class OrigamiEngine:
                     "pip install 'origami-engine-mjx[warp]'"
                 )
             # Prefer warp if available (implies CUDA GPU), else jax.
-            backend = "warp" if "warp" in avail else avail[0]
+            backend = "warp" if "warp" in avail else avail[0]  # type: ignore[assignment]
         self._backend_name: BackendName = backend  # type: ignore[assignment]
         self._backend: SimulationBackend = get_backend(self._backend_name)
 
