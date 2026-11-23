@@ -225,9 +225,10 @@ def benchmark(
 ) -> dict[str, Any]:
     """Measure evaluator throughput on ``n`` random genomes.
 
-    Returns a dict with ``n``, ``wall_time`` (seconds), ``evals_per_sec`` and
-    ``sec_per_eval``.  The first genome is discarded from timing as a warm-up
-    (JIT/compile costs are not representative of steady state).
+    Returns a dict with ``n``, ``wall_time`` (seconds), ``evals_per_sec``,
+    ``sec_per_eval`` and the ``batch_size`` actually used.  The first genome is
+    evaluated once before timing as a warm-up (JIT/compile costs are not
+    representative of steady state).
 
     Note: this measures *evaluations per second* for the configured
     ``duration``; it does not measure raw physics steps per second.
