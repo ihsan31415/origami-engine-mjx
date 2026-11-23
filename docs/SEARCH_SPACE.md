@@ -196,9 +196,11 @@ assert len(space.decode(dropped)) == space.n_slots - 3
 ```
 
 `count_mode` is one of `"fixed"`, `"range"` (with `count_bounds=(min, max)`) or
-`"free"`. `count_bounds` is validated against the template size. The padded view
-suits fixed-length pipelines; the list view suits anything that consumes a
-`list[Crease]`.
+`"free"`. `count_bounds` is validated against the template size. `presence_count(genome)`
+returns the decoded crease count and `count_ok(genome)` checks it against
+`count_bounds` (always `True` unless `count_mode="range"`); `rejection_sample`
+honours both `is_valid` and `count_ok`. The padded view suits fixed-length
+pipelines; the list view suits anything that consumes a `list[Crease]`.
 
 > **Trade-off:** dropping creases can make the remaining pattern no longer tile
 > the sheet, so `build_pattern` may report it invalid. Use
@@ -216,8 +218,9 @@ sample = space.rejection_sample(0, size=8)  # only valid genomes, bounded attemp
 
 `is_valid` runs the cheap shared `geometry.build_pattern` check; `repair` is a
 bounds projection that never raises for a correctly sized input, and
-`rejection_sample` resamples until it finds valid genomes (raising only if it
-exhausts its attempt budget).
+`rejection_sample` resamples until it finds genomes that are both geometrically
+valid (`is_valid`) and, when `count_mode="range"`, within the crease-count bounds
+(`count_ok`). It raises only if it exhausts its attempt budget.
 
 ## 9. Introspection
 

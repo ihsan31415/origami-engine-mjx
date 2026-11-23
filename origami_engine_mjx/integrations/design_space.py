@@ -39,7 +39,10 @@ Variable crease count
 Adding a ``"presence"`` variable per slot lets a genome drop creases.  Two
 views are supported: the padded view (:meth:`DesignSpace.presence_mask`, one
 entry per base slot) and the list view (:meth:`DesignSpace.decode`, only the
-present creases).  Trade-off: a reduced pattern may no longer tile the sheet
+present creases).  :meth:`DesignSpace.presence_count` reports the decoded count
+and :meth:`DesignSpace.count_ok` checks it against ``count_bounds`` when
+``count_mode="range"``; :meth:`DesignSpace.rejection_sample` honours both.
+Trade-off: a reduced pattern may no longer tile the sheet
 (:func:`origami_engine_mjx.geometry.build_pattern` then reports it invalid), so
 use :meth:`DesignSpace.is_valid` / :meth:`DesignSpace.rejection_sample` and let
 the evaluator's ``penalty``/``status`` fallback absorb the rest.
@@ -502,6 +505,23 @@ class DesignSpace:
                     mask[ci] = bool(val >= self.presence_threshold)
         return mask
 
+    def presence_count(self, vector: VectorLike) -> int:
+        """Number of present creases for a genome (the variable crease count)."""
+        return int(self.presence_mask(vector).sum())
+
+    def count_ok(self, vector: VectorLike) -> bool:
+        """Whether the present-crease count satisfies :attr:`count_bounds`.
+
+        Always ``True`` unless ``count_mode == "range"``; in that mode the
+        decoded crease count must lie within ``count_bounds``.  This is the
+        crease-count analogue of :meth:`is_valid` (which checks the *geometry*);
+        :meth:`rejection_sample` honours both.
+        """
+        if self.count_mode != "range" or self.count_bounds is None:
+            return True
+        lo, hi = int(self.count_bounds[0]), int(self.count_bounds[1])
+        return lo <= self.presence_count(vector) <= hi
+
     def base_vector(self) -> np.ndarray:
         """Return the genome that reproduces the template pattern exactly.
 
@@ -613,6 +633,11 @@ class DesignSpace:
     ) -> np.ndarray:
         """Draw valid genomes by rejection sampling.
 
+        A genome is accepted only when :meth:`is_valid` holds (it decodes to a
+        pattern that tiles the sheet) and, for ``count_mode="range"``,
+        :meth:`count_ok` holds (the present-crease count is within
+        ``count_bounds``).
+
         Parameters
         ----------
         rng :
@@ -644,7 +669,7 @@ class DesignSpace:
         while len(accepted) < want and attempts < budget:
             attempts += 1
             cand = self.sample_normalized(g) if normalized else self.sample(g)
-            if self.is_valid(cand):
+            if self.is_valid(cand) and self.count_ok(cand):
                 accepted.append(np.asarray(cand, dtype=float))
         if not accepted:
             raise RuntimeError(f"could not draw a valid genome in {budget} attempts; is the space feasible?")

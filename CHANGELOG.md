@@ -19,7 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `angles_and_geometry`, `geometry_only` and `everything`, selection by
   group/index/slice/list/bool-mask/name/predicate, equality/symmetry constraints
   that reduce the genome dimension, a normalized `[-1, 1]` view, per-variable
-  bounds, validity/repair/rejection sampling, introspection and dict/JSON
+  bounds, validity/repair/rejection sampling (with crease-count bounds honoured
+  via `presence_count` / `count_ok`), introspection and dict/JSON
   round-tripping. The default `angles_only` preset reproduces `SearchSpace`
   exactly (same vectors, bounds and decoded creases).
 - `integrations/population.py` — population **seeding / initialization only**

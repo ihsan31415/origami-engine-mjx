@@ -185,6 +185,31 @@ def test_count_mode_range_validates_bounds():
     assert space.count_bounds == (10, 24)
 
 
+def test_presence_count_and_count_ok():
+    space = DesignSpace.everything(presence=[0, 1, 2], count_mode="range", count_bounds=(23, 24))
+    base = space.base_vector()
+    assert space.presence_count(base) == space.n_slots
+    assert space.count_ok(base)
+    dropped = base.copy()
+    dropped[space.select(group="presence")] = 0.0  # drop all three -> count 21
+    assert space.presence_count(dropped) == space.n_slots - 3
+    assert not space.count_ok(dropped)
+
+
+def test_rejection_sample_respects_count_bounds():
+    # angles + a single presence slot: geometry validity is unaffected by angles,
+    # so this isolates the count-bound check in rejection_sample.
+    space = (
+        DesignSpaceBuilder(load_default_creases())
+        .angles(active_only=True)
+        .presence([0])
+        .build(count_mode="range", count_bounds=(24, 24))
+    )
+    sample = space.rejection_sample(0, size=3, max_tries=500)
+    assert sample.shape == (3, space.dim)
+    assert all(space.count_ok(row) and space.presence_count(row) == 24 for row in sample)
+
+
 # ----------------------------------------------------------------------
 # Validity, repair, sampling
 # ----------------------------------------------------------------------
