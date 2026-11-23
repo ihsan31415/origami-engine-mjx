@@ -104,7 +104,7 @@ Writes Form A with 2-space indentation, creating parent directories as needed, a
 
 ## The reference pattern
 
-The reference pattern is a 4×4 Miura-ori: **24 creases, 16 faces, 9 loop edges**, stored with `"angle_unit": "degree"` and ±45° angles. It exists in two byte-identical copies (guarded by `tests/test_packaging.py`): the repo-root `crease_patterns/reference_miura_4x4.json` (linked from the README) and the packaged `origami_engine_mjx/crease_patterns/reference_miura_4x4.json`, which **ships in the wheel** so it is available in every install method.
+The reference pattern is a 4×4 Miura-ori: **24 creases, 16 faces, 9 loop edges**, stored with `"angle_unit": "degree"` and ±45° angles. It exists in two byte-identical copies: the repo-root `crease_patterns/reference_miura_4x4.json` (linked from the README) and the packaged `origami_engine_mjx/crease_patterns/reference_miura_4x4.json`, which **ships in the wheel** so it is available in every install method.
 
 ```python
 from origami_engine_mjx import DEFAULT_PATTERN_JSON, load_default_creases

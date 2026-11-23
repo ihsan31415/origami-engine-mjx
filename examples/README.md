@@ -20,26 +20,21 @@ make examples
 | [`01_evaluate_cpu_jax.py`](01_evaluate_cpu_jax.py) | Single simulation + population evaluation on CPU using MJX-JAX | `OrigamiEngine, evaluate_individual, evaluate_population` | Prints forward displacement (m) and optionally scores |
 | [`02_evaluate_warp_gpu.py`](02_evaluate_warp_gpu.py) | MJX-Warp single simulation on NVIDIA GPU | `OrigamiEngine, load_default_creases` | Prints forward displacement (warp/GPU) |
 | [`03_batch_population.py`](03_batch_population.py) | Batched population evaluation with configurable batch size | `OrigamiEngine, evaluate_population` | One score per individual |
-| [`04_evaluate_population.py`](04_evaluate_population.py) | Population evaluation with `error_policy` (raise / nan) | `evaluate_population` | Best fitness score, optionally ranked |
-| [`05_plot_pattern.py`](05_plot_pattern.py) | Plot the default pattern headlessly (Agg backend) and save a PNG | `plot_pattern, build_pattern, load_default_creases` | Writes `examples/05_plot_pattern.png` (gitignored) |
-| [`02_json_input.py`](02_json_input.py) | Save creases to JSON and load them back (schema-validated round-trip), then evaluate the loaded pattern | `save_creases_to_json, load_creases_from_json, evaluate_individual` | Prints file size, loaded crease count/first angle, score |
-| [`03_inspect_pattern.py`](03_inspect_pattern.py) | Reconstruct and inspect the face graph without simulating (no MuJoCo needed for `build_pattern`) | `build_pattern, load_default_creases / DEFAULT_PATTERN_JSON` | Prints validity, face/hinge/loop-edge counts, root face, tree depth |
+| [`colab_gpu_validation.py`](colab_gpu_validation.py) | End-to-end MJX-Warp validation + benchmark on a Colab T4 | `OrigamiEngine, evaluate_population` | Timing and throughput table |
 
 ## How each maps to the tutorials
 
 | Example | Tutorial in [TUTORIALS.md](../docs/TUTORIALS.md) | Deeper doc |
 |---|---|---|
-| 01 | Tutorial 3 — score a pattern | [EVALUATION.md](../docs/EVALUATION.md) |
-| 02 | Tutorial 4 — JSON round-trip | [CREASE_FORMAT.md](../docs/CREASE_FORMAT.md) |
-| 03 | Tutorial 1 — inspect a pattern | [CREASE_FORMAT.md](../docs/CREASE_FORMAT.md) |
-| 04 | Tutorial 6 — population evaluation | [EVALUATION.md](../docs/EVALUATION.md) |
-| 05 | Tutorial 7 — plot & save PNG | [SIMULATION.md](../docs/SIMULATION.md) (rendering) |
-| 02 JSON | Tutorial 4 — JSON round-trip | [CREASE_FORMAT.md](../docs/CREASE_FORMAT.md) |
-| 03 inspect | Tutorial 1 — inspect a pattern | [CREASE_FORMAT.md](../docs/CREASE_FORMAT.md) |
+| 01 | Tutorial 2–3 — run & score a pattern | [EVALUATION.md](../docs/EVALUATION.md) |
+| 02 | Tutorial 2 — run on GPU (Warp) | [BACKENDS.md](../docs/BACKENDS.md) |
+| 03 | Tutorial 6 — population evaluation | [EVALUATION.md](../docs/EVALUATION.md) |
+| colab | Tutorial 2 — GPU quick start | [COLAB_GPU.md](../docs/COLAB_GPU.md) |
 
 ## Related entry points
 
-- `make example` → runs every `examples/0*.py` script sequentially.
+- `make example` → runs the quick-start script `examples/01_evaluate_cpu_jax.py` (CPU).
+- `make examples` → runs every `examples/0*.py` script sequentially (the GPU/Warp one requires a CUDA device).
 - `make lint` → `ruff check .` + `ruff format --check .`.
 - `make format` → `ruff format .` + `ruff check --fix .`.
 - `make typecheck` → `mypy origami_engine_mjx --config-file pyproject.toml`.
@@ -47,7 +42,7 @@ make examples
 ## See also
 
 - [GETTING_STARTED.md](../docs/GETTING_STARTED.md) — installation methods (pip / uv / source)
-- [TUTORIALS.md](../docs/TUTORIALS.md) — nine step-by-step recipes
+- [TUTORIALS.md](../docs/TUTORIALS.md) — eight step-by-step recipes
 - [API_REFERENCE.md](../docs/API_REFERENCE.md) — full API signatures
 - [EVALUATION.md](../docs/EVALUATION.md) — fitness functions and population evaluation
 - [CREASE_FORMAT.md](../docs/CREASE_FORMAT.md) — crease & JSON format reference

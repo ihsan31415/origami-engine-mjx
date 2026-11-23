@@ -47,7 +47,7 @@ SimulationResult(initial_centroid, final_centroid, ...) → fitness = projection
 2. **Step returns new state**: `data = mjx.step(model, data)` instead of `mujoco.mj_step(model, data)` (in-place).
 3. **JAX arrays for controls**: control targets must be `jax.numpy` arrays, not plain NumPy (mixing causes `AttributeError: 'numpy.ndarray' has no attribute 'at'` inside MJX).
 4. **Name lookups**: use the classic `MjModel` (kept in the model bundle) for `model.joint("table_x").qposadr` etc.; the MJX model has no `.joint()` views.
-5. **Rendering**: `mujoco.Renderer` only works with classic `MjModel`/`MjData`. The Warp/JAX backends don't render; use `mjx.get_data` to copy state back to a classic `MjData` for rendering, or keep the legacy `render_individual.py`.
+5. **Rendering**: `mujoco.Renderer` only works with classic `MjModel`/`MjData`. The Warp/JAX backends don't render; use `mjx.get_data` to copy state back to a classic `MjData` for rendering. This repository ships **no** renderer — see [MIGRATION.md](MIGRATION.md#origami-render-and-video-rendering).
 
 ## The `Crease` → `Pattern` → Simulation pipeline
 

@@ -35,12 +35,10 @@ print(max(pat.depth.values()))  # depth of the hinge spanning tree
 
 If the pattern is invalid, `pat.valid` is `False` and `pat.reason` says why (e.g. `"sliver face (area ...)"`, `"faces do not tile the sheet"`, `"disconnected faces"`). See [CREASE_FORMAT.md](CREASE_FORMAT.md) for the full list.
 
-Runnable version: `python examples/03_inspect_pattern.py` (from a source checkout).
-
 ## Tutorial 2 — Run your first simulation
 
 ```python
-from origami_engine_mjx import OrigamiEngine
+from origami_engine_mjx import OrigamiEngine, load_default_creases
 
 engine = OrigamiEngine(backend="jax")  # or backend="warp" on GPU
 creases = load_default_creases()
@@ -66,6 +64,8 @@ print(result.info["n_faces"], "faces,", result.info["n_hinges"], "hinges")
 `duration=8.0` on the full 16-face reference mesh is very slow on CPU MJX; use the tiny 2-face pattern or a GPU for quick experiments (see [BACKENDS.md](BACKENDS.md)).
 
 Parameters worth knowing: `duration` (8.0 s of simulated time), `fold_duration` (3.0 s smoothstep ramp over which actuator targets go from 0 to full), `vibrate` (True), `amp_x`/`amp_z` (0.0 / 0.0013 m), `freq_hz` (75.0 Hz). See [SIMULATION.md](SIMULATION.md) for the internals.
+
+Runnable version: `python examples/01_evaluate_cpu_jax.py` (CPU) or `python examples/02_evaluate_warp_gpu.py` (CUDA GPU).
 
 ## Tutorial 3 — Score a pattern (fitness)
 
@@ -117,8 +117,6 @@ with tempfile.TemporaryDirectory() as tmp:
 
 `normalize_creases` also accepts a file path or a list of dicts directly, so you can pass any of these forms straight into `engine.run` / `engine.evaluate`. The JSON format and schema are documented in [CREASE_FORMAT.md](CREASE_FORMAT.md).
 
-Runnable version: `python examples/02_json_input.py`.
-
 ## Tutorial 5 — Define a custom pattern in Python
 
 Creases are 2D segments on the unit sheet (`S = 1.0`). The crease set must tile the square into valid polygons:
@@ -162,7 +160,7 @@ print("best fitness:", best[0])
 
 Results keep the input order. `trajectory` is validated but currently ignored by population scoring (always +x), and `batch_size` has no effect yet — see [EVALUATION.md](EVALUATION.md#current-behaviour-caveats). For a non-+x fitness direction, score individuals with `evaluate_individual(..., trajectory=...)`.
 
-Runnable version: `python examples/04_evaluate_population.py`.
+Runnable version: `python examples/03_batch_population.py`.
 
 ## Tutorial 7 — Plot a pattern and save the figure
 
@@ -180,8 +178,6 @@ plt.gcf().savefig("my_pattern.png", dpi=150, bbox_inches="tight")
 ```
 
 Style: Mountain = crimson dashed, Valley = royalblue dash-dot, each crease labelled with its fold angle in degrees, face indices in gray, loop edges marked with a black `x`. The repo ships a pre-rendered version at `docs/crease_pattern_plot.png`.
-
-Runnable version: `python examples/05_plot_pattern.py`.
 
 ## Tutorial 8 — Get the raw MuJoCo XML
 

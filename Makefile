@@ -1,11 +1,11 @@
-# Makefile for origami-simulator
+# Makefile for origami-engine-mjx
 # Usage: make <target>
 
 PYTHON ?= python
 VENV  ?= .venv
 PY    ?= $(VENV)/bin/python
 
-.PHONY: help venv install test example render examples lint format clean ci
+.PHONY: help venv install test example examples lint format typecheck clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -21,11 +21,8 @@ install: venv ## Install the package and dev dependencies in editable mode
 test: ## Run the test suite
 	$(PY) -m pytest -q
 
-example: ## Run the minimal example
-	$(PY) origami_engine/example.py
-
-render: ## Render the reference pattern to individual_simulation.mp4
-	$(PY) origami_engine/render_individual.py
+example: ## Run the quick-start example (CPU, MJX-JAX)
+	$(PY) examples/01_evaluate_cpu_jax.py
 
 examples: ## Run all example scripts
 	@for f in examples/0*.py; do echo "== $$f"; $(PY) "$$f"; done
@@ -42,6 +39,6 @@ typecheck: ## Run mypy on the MJX package
 	$(PY) -m mypy origami_engine_mjx --config-file pyproject.toml
 
 clean: ## Remove generated artifacts and caches
-	rm -f render_report.json render_report.md individual_simulation.mp4
+	rm -f examples/*.png
 	rm -rf .pytest_cache .ruff_cache .mypy_cache htmlcov
 	find . -type d -name __pycache__ -prune -exec rm -rf {} +
