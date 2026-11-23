@@ -108,6 +108,11 @@ same space are interpolated directly; seeds whose topology cannot be encoded are
 rejected by [`load_seeds`](#2-loading-seed-files) before they reach an
 interpolator, rather than producing nonsense.
 
+Interpolation does **not** check geometric validity: an intermediate genome that
+blends two valid seeds is not guaranteed to tile the sheet. Filter the result
+with `DesignSpace.is_valid` / `rejection_sample`, or generate with
+`mixed_population(..., valid_only=True)`.
+
 ## 4. Jitter
 
 ```python
