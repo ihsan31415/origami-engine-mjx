@@ -85,8 +85,9 @@ shape it. See [EVALUATION.md](EVALUATION.md) for the displacement signal.
 - `terminated` is `True` only if the simulation becomes non-finite
   (`info["status"] == "unstable"`).
 - `truncated` is `True` once `step_count >= max_steps`.
-- `info` carries `step_count`, `status`, `forward_displacement`, `centroid` and
-  `targets`.
+- On a normal step `info` carries `step_count`, `status`,
+  `forward_displacement`, `centroid` and `targets`. The terminal unstable step
+  omits `centroid` and `targets`, and `reset` omits `targets`.
 
 ### Seeding and determinism
 
