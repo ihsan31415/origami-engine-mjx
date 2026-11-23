@@ -42,6 +42,15 @@ warp = [
     "mujoco-warp>=3.0",
     "warp-lang>=1.0",
 ]
+opt = [
+    "pymoo>=0.6",
+    "nevergrad>=0.10",
+    "cma>=3.3",
+    "evosax>=0.1",
+]
+rl = [
+    "gymnasium>=0.29",
+]
 dev = [
     "pytest>=8",
     "pytest-cov>=4.0",
@@ -50,7 +59,7 @@ dev = [
     "pre-commit>=3.8",
 ]
 all = [
-    "origami-engine-mjx[jax,warp,dev]",
+    "origami-engine-mjx[jax,warp,opt,rl,dev]",
 ]
 
 [tool.setuptools.packages.find]
