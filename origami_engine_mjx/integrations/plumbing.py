@@ -234,6 +234,8 @@ def benchmark(
     Note: this measures *evaluations per second* for the configured
     ``duration``; it does not measure raw physics steps per second.
     """
+    if int(n) < 1:
+        raise ValueError("n must be at least 1")
     space = evaluator.space
     rng = make_rng(seed)
     genomes = space.sample(rng, size=int(n))

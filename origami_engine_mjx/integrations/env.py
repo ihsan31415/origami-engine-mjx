@@ -10,6 +10,7 @@ environment; :class:`OrigamiVectorEnv` steps many copies in parallel with
 Requires the ``[rl]`` extra (Gymnasium) and the ``[jax]`` extra (MJX-JAX).
 """
 
+import contextlib
 from collections.abc import Callable
 from typing import Any, ClassVar
 
@@ -319,7 +320,10 @@ class OrigamiEnv(gym.Env if gym is not None else object):  # type: ignore[misc]
 
     def close(self) -> None:
         """Release the renderer if one was created."""
-        self._renderer = None
+        if self._renderer is not None:
+            with contextlib.suppress(Exception):  # best-effort GL teardown
+                self._renderer.close()
+            self._renderer = None
 
 
 class OrigamiVectorEnv:

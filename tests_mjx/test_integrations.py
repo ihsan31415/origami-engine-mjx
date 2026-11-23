@@ -334,3 +334,11 @@ def test_benchmark_returns_metrics(tiny_creases):
     assert metrics["n"] == 2
     assert metrics["wall_time"] >= 0.0
     assert "evals_per_sec" in metrics
+
+
+def test_benchmark_rejects_nonpositive_n(tiny_creases):
+    """A non-positive count is rejected before any sampling or simulation."""
+    space = SearchSpace.from_creases(tiny_creases)
+    ev = OrigamiEvaluator(space, backend="jax")
+    with pytest.raises(ValueError):
+        benchmark(ev, n=0)
