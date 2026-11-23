@@ -21,7 +21,7 @@ score = compute_forward_displacement(sim_result, trajectory=(1.0, 0.0, 0.0))
 The exact computation depends on the **length of `trajectory`**:
 
 ```python
-delta = sim_result.final_centroid - sim_result.initial_centroid   # (2,)
+delta = sim_result.final_centroid - sim_result.initial_centroid  # (2,)
 
 # 2-element trajectory: NOT normalized
 score = dot(delta[:2], trajectory)
@@ -114,7 +114,7 @@ from origami_engine_mjx import evaluate_individual, load_default_creases
 import numpy as np
 
 population = [load_default_creases() for _ in range(8)]
-scores = [],
+scores = ([],)
 for individual in population:
     scores.append(
         evaluate_individual(
