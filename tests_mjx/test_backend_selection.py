@@ -39,8 +39,10 @@ def test_selecting_warp_without_gpu_raises_runtime_error():
 
 
 def test_auto_backend_picks_jax_on_cpu():
-    engine = OrigamiEngine(backend="auto")
-    # On CPU-only, auto must resolve to jax.
     avail = available_backends()
-    expected = "warp" if "warp" in avail else avail[0] if avail else "jax"
+    if not avail:
+        pytest.skip("no MJX backend installed in this environment (CI installs only [dev])")
+    engine = OrigamiEngine(backend="auto")
+    # auto must resolve to an available backend; warp preferred if CUDA present.
+    expected = "warp" if "warp" in avail else avail[0]
     assert engine.backend_name == expected
