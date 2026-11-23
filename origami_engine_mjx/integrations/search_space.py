@@ -320,7 +320,7 @@ class SearchSpace:
 
     def from_normalized(self, normalized: VectorLike) -> np.ndarray:
         """Map a normalized ``[-1, 1]`` vector back to angle space (clipped)."""
-        z = np.asarray(normalized, dtype=float).reshape(-1)
+        z: np.ndarray = np.asarray(normalized, dtype=float).reshape(-1)
         if z.size != self.dim:
             raise ValueError(f"normalized genome has length {z.size}, expected {self.dim}")
         z = np.clip(z, -1.0, 1.0)

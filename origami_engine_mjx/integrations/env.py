@@ -153,7 +153,7 @@ class OrigamiEnv(gym.Env if gym is not None else object):  # type: ignore[misc]
         self._classic: Any = None
         self._params: Any = None
         self._data: Any = None
-        self._targets = np.zeros(dim, dtype=float)
+        self._targets: np.ndarray = np.zeros(dim, dtype=float)
         self._initial_centroid = np.zeros(2, dtype=float)
         self._prev_forward = 0.0
         self._step_count = 0
@@ -186,7 +186,7 @@ class OrigamiEnv(gym.Env if gym is not None else object):  # type: ignore[misc]
     # ------------------------------------------------------------------
 
     def _angles_from_action(self, action: np.ndarray) -> np.ndarray:
-        a = np.asarray(action, dtype=float).reshape(-1)
+        a: np.ndarray = np.asarray(action, dtype=float).reshape(-1)
         if self.normalized_action:
             a = np.clip(a, -1.0, 1.0)
             if self.action_mode == "delta":
