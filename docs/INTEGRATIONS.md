@@ -145,7 +145,9 @@ exactly one `OrigamiEngine` run.
   `compute_forward_displacement`; it does not change their behaviour.
 - The environments are built directly on the backend internals
   (`JaxBackend().build_model` / `mjx.make_data` / `mjx.step`) because there is no
-  per-step public backend API. The core modules are unchanged.
+  per-step public backend API. The core modules are unchanged. The environments
+  align action entry `j` with crease `space.active_indices[j]` (the model emits
+  actuators depth-first, not in crease order; see [RL.md](RL.md)).
 - Nothing in `integrations/` is imported by the core package, so the public API
   and its signatures are unaffected.
 

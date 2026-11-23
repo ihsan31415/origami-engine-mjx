@@ -52,6 +52,16 @@ for _ in range(env.max_steps):
 
 `dim = space.dim` is the number of actuated hinges (15 for the default pattern).
 
+Action entry `j` (and observation angle `j`) corresponds to the same crease as
+genome entry `j`, i.e. `space.active_indices[j]`. The MJCF model emits its
+actuators in a depth-first traversal, which is generally **not** sorted crease
+order, so the environments reindex the action into the model's actuator order
+internally (`EnvParams.ctrl_perm`). You can therefore pass an environment action
+straight to `space.decode` / `space.encode` and get the crease pattern you
+expect. (A pattern where one crease maps to several spanning-tree hinges is not
+supported: the space deduplicates creases while the model does not, so
+`make_params` rejects the mismatch.)
+
 ### Action modes
 
 - `normalized_action=True` (default): actions are in `[-1, 1]` and map linearly

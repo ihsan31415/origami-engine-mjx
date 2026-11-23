@@ -4,6 +4,8 @@ Requires the ``[rl]`` (gymnasium) and ``[jax]`` extras.  Simulation-backed tests
 are marked ``slow`` (MJX-JAX on CPU is seconds per tiny step).
 """
 
+import jax
+import jax.numpy as jnp
 import numpy as np
 import pytest
 
@@ -12,8 +14,9 @@ pytest.importorskip("jax")
 pytest.importorskip("mujoco.mjx")
 
 from origami_engine_mjx import Crease
-from origami_engine_mjx.integrations import SearchSpace
+from origami_engine_mjx.integrations import SearchSpace, jax_env
 from origami_engine_mjx.integrations.env import OrigamiEnv, OrigamiVectorEnv
+from origami_engine_mjx.integrations.jax_env import build_jax_model, make_params
 
 
 @pytest.fixture(scope="module")
@@ -57,6 +60,61 @@ def test_env_step_before_reset_raises(tiny_space):
     env = OrigamiEnv(space=tiny_space)
     with pytest.raises(RuntimeError):
         env.step(np.zeros(tiny_space.dim, dtype=np.float32))
+
+
+def test_action_order_aligns_with_search_space():
+    """Genome entry j must drive the hinge of crease ``space.active_indices[j]``.
+
+    The model emits hinges in a depth-first traversal, which for the default
+    pattern differs from sorted crease order, so ``make_params`` must expose a
+    non-identity permutation.  Regression test for a silent action/hinge swap.
+    """
+    space = SearchSpace.from_default_pattern()
+    _, classic, info = build_jax_model(space.decode(np.zeros(space.dim)))
+    params = make_params(space, classic, info)
+
+    assert {int(c) for c in info["hinge_creases"]} == {int(i) for i in space.active_indices}
+    ctrl_perm = np.asarray(params.ctrl_perm)
+    for h, j in enumerate(ctrl_perm.tolist()):
+        assert int(space.active_indices[j]) == int(info["hinge_creases"][h])
+    assert not np.array_equal(ctrl_perm, np.arange(space.dim))  # genuinely permuted
+    # hinge_adr is reordered to genome order too.
+    hinge_adr = np.asarray(params.hinge_adr)
+    model_adr = [classic.joint(h["name"]).qposadr[0] for h in info["hinges"]]
+    for j in range(space.dim):
+        h = int(np.where(ctrl_perm == j)[0][0])
+        assert hinge_adr[j] == model_adr[h]
+
+
+def test_make_params_rejects_mismatched_space(tiny_space):
+    """A space whose crease set differs from the model must be rejected."""
+    space = SearchSpace.from_default_pattern()
+    _, classic, info = build_jax_model(tiny_space.decode(np.zeros(tiny_space.dim)))
+    with pytest.raises(ValueError):
+        make_params(space, classic, info)
+
+
+@pytest.mark.slow
+def test_step_ctrl_uses_search_space_order():
+    """End-to-end: the control sent to the model is permuted into genome order.
+
+    Uses a 3-strip pattern whose model hinge order is the reverse of its crease
+    order, so a missing permutation would send each action to the wrong hinge.
+    """
+    creases = [
+        Crease((0.0, 1.0 / 3), (1.0, 1.0 / 3), -0.3),
+        Crease((0.0, 2.0 / 3), (1.0, 2.0 / 3), 0.4),
+    ]
+    space = SearchSpace.from_creases(creases)
+    model, classic, info = build_jax_model(space.decode(np.zeros(space.dim)))
+    params = make_params(space, classic, info)
+    assert not np.array_equal(np.asarray(params.ctrl_perm), np.arange(space.dim))
+
+    state = jax_env.reset(jax.random.key(0), model, params)
+    action = np.array([1.0, -1.0], dtype=np.float32)
+    state, _, _, _ = jax_env.step(model, state, params, jnp.asarray(action))
+    angles = space.from_normalized(action)
+    assert np.allclose(np.asarray(state.data.ctrl), angles[np.asarray(params.ctrl_perm)])
 
 
 @pytest.mark.slow

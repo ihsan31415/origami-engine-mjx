@@ -211,11 +211,12 @@ class OrigamiEnv(gym.Env if gym is not None else object):  # type: ignore[misc]
 
     def _run_physics(self, targets: np.ndarray) -> None:
         angles = jnp.asarray(targets, dtype=jnp.float32)
+        ctrl = angles[self._params.ctrl_perm]  # genome order -> model actuator order
         data = self._data
 
         def body(k, d):
             t = jnp.asarray((self._step_count * self.frame_skip + k) * float(self._classic.opt.timestep))
-            d = d.replace(ctrl=angles)
+            d = d.replace(ctrl=ctrl)
             if self.vibrate:
                 w = 2.0 * jnp.pi * self.freq_hz
                 qpos = d.qpos.at[int(self._params.table_x_qadr)].set(self.amp_x * jnp.sin(w * t))
@@ -248,7 +249,7 @@ class OrigamiEnv(gym.Env if gym is not None else object):  # type: ignore[misc]
 
         data = mjx.make_data(self._model)
         data = data.replace(qpos=data.qpos.at[self._params.hinge_adr].set(0.0))
-        data = data.replace(ctrl=jnp.asarray(self._targets, dtype=jnp.float32))
+        data = data.replace(ctrl=jnp.asarray(self._targets, dtype=jnp.float32)[self._params.ctrl_perm])
         self._data = data
         self._initial_centroid = self._centroid_now()
         self._prev_forward = 0.0

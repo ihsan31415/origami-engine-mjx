@@ -88,9 +88,15 @@ class EnvParams(NamedTuple):
 
     Build one with :func:`make_params`.  All fields are JAX arrays so the whole
     object is a pytree and can be passed through ``jit``/``vmap``.
+
+    ``hinge_adr`` is ordered to match the search space's genome (one entry per
+    ``space.active_indices``); ``ctrl_perm`` reindexes a genome-ordered angle
+    vector into the model's actuator order (the model emits hinges in a
+    depth-first traversal, which is generally *not* sorted crease order).
     """
 
     hinge_adr: Any
+    ctrl_perm: Any
     table_x_qadr: Any
     table_x_dadr: Any
     table_z_qadr: Any
@@ -125,6 +131,10 @@ def build_jax_model(creases, coll_thick: float | None = None):
     if not pat.valid:
         raise ValueError(f"invalid crease pattern: {pat.reason}")
     xml, info = generate_xml(pat, normalized, coll_thick=coll_thick)
+    # Record which crease each actuated hinge corresponds to, in the model's
+    # hinge (depth-first) order.  ``make_params`` uses this to align the search
+    # space's genome order with the model's actuator order.
+    info["hinge_creases"] = [int(pat.edges[h["edge"]]["crease"]) for h in info["hinges"]]
     bundle = JaxBackend().build_model(xml, info)
     return bundle["mjx_model"], bundle["classic_model"], info
 
@@ -144,6 +154,17 @@ def make_params(
 
     ``space`` must describe the *same* topology used to build ``classic_model``;
     ``frame_skip`` physics steps are run per :func:`step` call.
+
+    ``info`` must be the dict returned by :func:`build_jax_model` (it carries the
+    hinge→crease map).  The genome order (sorted crease indices) is aligned with
+    the model's actuator order here, so action entry ``j`` drives the hinge of
+    crease ``space.active_indices[j]``.
+
+    Raises
+    ------
+    ValueError
+        If the model's actuated hinges do not match the space's active creases
+        (e.g. the wrong pattern, or a crease split across several tree hinges).
     """
     _require_jax()
     hinge_adr = np.asarray([classic_model.joint(h["name"]).qposadr[0] for h in info["hinges"]], dtype=np.int32)
@@ -152,12 +173,33 @@ def make_params(
             f"search space has {space.dim} variables but the model has {hinge_adr.size} actuated hinges; "
             "build the space with active_only=True over the same pattern"
         )
+    # Align the genome order (sorted crease indices) with the model's actuator
+    # order.  The model emits hinges in a depth-first traversal, so hinge h does
+    # not generally drive crease ``space.active_indices[h]``.
+    hinge_creases = info.get("hinge_creases")
+    if hinge_creases is None:
+        ctrl_perm = np.arange(hinge_adr.size, dtype=np.int32)
+    else:
+        crease_to_j = {int(c): j for j, c in enumerate(space.active_indices)}
+        if {int(c) for c in hinge_creases} != set(crease_to_j):
+            raise ValueError(
+                "model hinges do not match the search space's active creases; "
+                "build the space with active_only=True over the same pattern"
+            )
+        # ctrl_perm[h] = genome index whose angle drives model hinge h.
+        ctrl_perm = np.asarray([crease_to_j[int(c)] for c in hinge_creases], dtype=np.int32)
+        # Reorder hinge addresses to genome order: hinge_adr[j] is the qpos of
+        # the hinge driven by genome entry j.
+        space_to_model_h = np.empty(hinge_adr.size, dtype=np.int32)
+        space_to_model_h[ctrl_perm] = np.arange(hinge_adr.size, dtype=np.int32)
+        hinge_adr = hinge_adr[space_to_model_h]
     table_id = int(classic_model.body("table").id)
     geom_bodyid = np.asarray(classic_model.geom_bodyid)
     paper_mask = geom_bodyid != table_id
     dt = float(classic_model.opt.timestep)
     return EnvParams(
         hinge_adr=jnp.asarray(hinge_adr),
+        ctrl_perm=jnp.asarray(ctrl_perm),
         table_x_qadr=jnp.asarray(int(classic_model.joint("table_x").qposadr[0]), dtype=jnp.int32),
         table_x_dadr=jnp.asarray(int(classic_model.joint("table_x").dofadr[0]), dtype=jnp.int32),
         table_z_qadr=jnp.asarray(int(classic_model.joint("table_z").qposadr[0]), dtype=jnp.int32),
@@ -233,10 +275,11 @@ def step(model, state: EnvState, params: EnvParams, action):
     """
     _require_jax()
     angles = _action_to_angles(action, params)
+    ctrl = angles[params.ctrl_perm]  # genome order -> model actuator order
 
     def body(k, data):
         t = (state.step_count * params.frame_skip + k).astype(jnp.float32) * params.dt
-        data = data.replace(ctrl=angles)
+        data = data.replace(ctrl=ctrl)
         data = jax.lax.cond(params.vibrate, lambda d: _apply_vibration(d, params, t), lambda d: d, data)
         return mjx.step(model, data)
 
