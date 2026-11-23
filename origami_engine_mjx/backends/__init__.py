@@ -56,9 +56,9 @@ def get_backend(name: str) -> SimulationBackend:
     return instance
 
 
-# Register built-in backends.  Imports are deferred so that importing this
-# module never initialises JAX or Warp unless the corresponding backend is
-# actually requested.
+# Register built-in backends.  Each backend module guards its optional
+# imports, so a missing JAX/Warp install does not break the registry; the
+# availability probe in available_backends()/get_backend() reports it.
 def _register_builtin() -> None:
     from .jax_backend import JaxBackend
     from .warp_backend import WarpBackend

@@ -158,10 +158,19 @@ pytest tests_mjx -q -m slow      # includes short MJX-CPU simulations
 
 For in-depth information, see the dedicated documentation files:
 
+- **[GETTING_STARTED.md](docs/GETTING_STARTED.md)** — installation and first run
+- **[TUTORIALS.md](docs/TUTORIALS.md)** — nine step-by-step recipes
+- **[CREASE_FORMAT.md](docs/CREASE_FORMAT.md)** — crease & JSON schema reference
+- **[API_REFERENCE.md](docs/API_REFERENCE.md)** — complete API signatures
+- **[SIMULATION.md](docs/SIMULATION.md)** — model structure, stepping loop, rendering
+- **[EVALUATION.md](docs/EVALUATION.md)** — fitness functions and population evaluation
 - **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** — package layout, data flow, backend responsibilities
 - **[BACKENDS.md](docs/BACKENDS.md)** — MJX-JAX vs MJX-Warp: semantics, features, limitations
 - **[COLAB_GPU.md](docs/COLAB_GPU.md)** — Colab T4 setup, validation checklist, benchmarking
 - **[MIGRATION.md](docs/MIGRATION.md)** — migrating from `origami-engine` (classic MuJoCo)
+- **[TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** — runtime problems and guidance
+- **[GLOSSARY.md](docs/GLOSSARY.md)** — terminology used across the codebase
+- **[CONTRIBUTING.md](docs/CONTRIBUTING.md)** — how to contribute, tests, CI
 - `examples/` — runnable scripts (see the table below)
 
 *All documentation lives in [`docs/`](docs).*

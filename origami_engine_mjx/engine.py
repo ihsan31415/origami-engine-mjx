@@ -45,7 +45,7 @@ class OrigamiEngine:
                     "pip install 'origami-engine-mjx[warp]'"
                 )
             # Prefer warp if available (implies CUDA GPU), else jax.
-            backend = "warp" if "warp" in avail else avail[0]
+            backend = "warp" if "warp" in avail else avail[0]  # type: ignore[assignment]
         self._backend_name: BackendName = backend  # type: ignore[assignment]
         self._backend: SimulationBackend = get_backend(self._backend_name)
 
@@ -126,7 +126,12 @@ class OrigamiEngine:
         freq_hz: float = VIB_FREQ,
         batch_size: int | None = None,
     ) -> PopulationResult:
-        """Evaluate a population of crease patterns in batch."""
+        """Evaluate a population of crease patterns.
+
+        ``trajectory`` is validated (it must be non-zero) but is not forwarded
+        to the backends, which currently score the +x centroid displacement.
+        ``batch_size`` is forwarded but ignored by both built-in backends.
+        """
         direction = np.asarray(trajectory, dtype=float)
         if direction.size == 2:
             direction = np.array([direction[0], direction[1], 0.0])
@@ -157,7 +162,11 @@ def compute_forward_displacement(
     sim_result: SimulationResult,
     trajectory: tuple[float, ...] = (1.0, 0.0, 0.0),
 ) -> float:
-    """Project centroid displacement onto the trajectory direction."""
+    """Project centroid displacement onto the trajectory direction.
+
+    A 2-element ``trajectory`` is used as-is (no normalization); a 3-element
+    ``trajectory`` is normalized before the dot product.
+    """
     direction = np.asarray(trajectory, dtype=float)
     initial = np.asarray(sim_result.initial_centroid, dtype=float)
     final = np.asarray(sim_result.final_centroid, dtype=float)

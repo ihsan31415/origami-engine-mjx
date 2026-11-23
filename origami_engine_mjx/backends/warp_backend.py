@@ -2,9 +2,10 @@ from __future__ import annotations
 
 """MJX-Warp simulation backend.
 
-Uses ``mujoco.warp`` (MuJoCo Warp, NVIDIA CUDA) for high-throughput batched
-simulation on GPU.  This backend **requires an NVIDIA CUDA GPU** and the
-``mujoco-warp`` + ``warp-lang`` packages.
+Uses ``mujoco.warp`` (MuJoCo Warp, NVIDIA CUDA) to step the same MJCF model on
+GPU.  This backend **requires an NVIDIA CUDA GPU** and the ``mujoco-warp`` +
+``warp-lang`` packages.  Population evaluation currently loops per individual;
+native batched Warp execution is not implemented yet.
 
 All Warp imports are lazy — importing this module does not initialise CUDA.
 """
@@ -21,9 +22,6 @@ from ..types import SimulationResult
 from .base import SimulationBackend
 
 # Lazy imports.
-mujoco = None
-mjw = None
-MjModel = None
 _IMPORT_ERROR: BaseException | None = None
 
 try:
@@ -31,11 +29,14 @@ try:
     import mujoco.warp as mjw
     from mujoco import MjModel
 except Exception as exc:  # noqa: BLE001
+    mujoco = None  # type: ignore[assignment]
+    mjw = None  # type: ignore[assignment]
+    MjModel = None  # type: ignore[assignment]
     _IMPORT_ERROR = exc
 
 
 class WarpBackend(SimulationBackend):
-    """MJX-Warp backend: NVIDIA CUDA GPU, batched high-throughput simulation."""
+    """MJX-Warp backend: NVIDIA CUDA GPU, ``mjw.step`` per individual."""
 
     name = "warp"
 
@@ -176,9 +177,11 @@ class WarpBackend(SimulationBackend):
         freq_hz: float = 75.0,
         batch_size: int | None = None,
     ) -> np.ndarray:
-        """Evaluate a population.  Warp backend loops per-individual for now;
-        true batched Warp execution (``mjw.step`` over batched state) is a
-        Colab-GPU integration target.
+        """Evaluate a population sequentially, one individual per ``run``.
+
+        Native batched Warp execution (``mjw.step`` over batched state) is not
+        implemented yet, so ``batch_size`` is ignored.  Scoring is always the
+        +x centroid displacement.
         """
         scores = []
         for creases in population:

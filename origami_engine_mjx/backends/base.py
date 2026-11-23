@@ -56,9 +56,11 @@ class SimulationBackend(ABC):
         freq_hz: float = 75.0,
         batch_size: int | None = None,
     ) -> np.ndarray:
-        """Run a batch of crease patterns in parallel and return fitness scores.
+        """Run a batch of crease patterns and return fitness scores.
 
-        Returns an array of forward-displacement scores, one per individual.
+        Implementations currently evaluate individuals sequentially, one
+        ``run`` call each.  Returns an array of forward-displacement scores,
+        one per individual.
         """
 
     @abstractmethod

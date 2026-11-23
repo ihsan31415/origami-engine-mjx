@@ -2,25 +2,92 @@
 
 > **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · **API Reference** · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Contributing](CONTRIBUTING.md)
 
-Complete reference for the public API of `origami_engine` (version `0.1.1`). All names below are importable from the package root:
+Complete reference for the public API of `origami_engine_mjx` (version `0.1.0`). Sections follow the **Core modules** order in the [README](../README.md#core-modules-brief). Every name below is verified against the installed package.
 
 ```python
-import origami_engine
-
-origami_engine.__all__  # full export list
+from origami_engine_mjx import (
+    OrigamiEngine,
+    Crease,
+    Pattern,
+    SimulationResult,
+    PopulationResult,
+    BackendName,
+    build_pattern,
+    generate_xml,
+    load_default_creases,
+    reference_miura_legacy_creases,
+    reference_miura_render_creases,
+    DEFAULT_PATTERN_JSON,
+    evaluate_individual,
+    evaluate_population,
+    compute_forward_displacement,
+    plot_pattern,
+    load_creases_from_json,
+    save_creases_to_json,
+    normalize_creases,
+    CREASE_SCHEMA,
+    S,
+    M,
+    V,
+    THICK,
+    PAPER_MASS,
+    Z0,
+    MAX_FOLD,
+    VIB_FREQ,
+    VIB_AMP_X,
+    VIB_AMP_Z,
+)
 ```
 
 ## Import paths
 
 | Import style | Example | Notes |
 |---|---|---|
-| Package root (recommended) | `from origami_engine import Crease, run_simulation` | Stable public surface |
-| Focused module | `from origami_engine.dynamics import run_simulation` | Fine for new code |
-| Legacy facade | `from origami_engine.simulation import Crease, ...` | Backward-compatible re-exports (also re-exports all constants) |
+| Package root (recommended) | `from origami_engine_mjx import OrigamiEngine, Crease, load_default_creases` | Stable public surface re-exported from `__init__.py` (`__all__` above). |
+| Focused shared module | `from origami_engine_mjx.geometry import build_pattern` | Geometry/I/O/model modules need no JAX or Warp runtime. |
+| Constants / types | `from origami_engine_mjx.constants import S, M, V, MIN_FACE_AREA` or `from origami_engine_mjx.types import Crease, Pattern` | The package root exports only a subset of constants; import the module for the rest. |
+| Backends | `from origami_engine_mjx.backends import available_backends, get_backend` | Registry + `SimulationBackend` interface. |
+| Import guards | `from origami_engine_mjx.backend import require_mjx_jax, mujoco` | Optional-dependency access without importing a backend class. |
 
-**MuJoCo import guard** (`origami_engine/backend.py`): the `mujoco` import is guarded. Geometry, serialization, plotting, and constants work without MuJoCo installed; `generate_xml`, `run_simulation`, `drive_table`, `paper_centroid`, and `render_individual` call `require_mujoco(...)`, which raises a helpful `RuntimeError` if `mujoco` is missing.
+**Backend applicability:** the shared modules (`constants`, `types`, `geometry`, `model`, `serialization`, `patterns`, `plotting`, `backend`, `engine` facade, `evaluation` wrappers) are backend-agnostic. Only `origami_engine_mjx.backends.jax_backend` / `warp_backend` touch MJX-JAX / MJX-Warp, and only the Warp backend needs a CUDA GPU.
 
-## Domain types (`origami_engine.types`)
+## `origami_engine_mjx.constants` — shared
+
+All values are module-level Python/NumPy scalars; there are no functions.
+
+| Constant | Runtime value | Meaning |
+|---|---|---|
+| `S` | `1.0` | Sheet side length (the sheet is `[0, S]²`, i.e. 1 m × 1 m). |
+| `THICK` | `0.0001` | Paper half-thickness used for the baseline prism geoms (m). |
+| `PAPER_MASS` | `0.2` | Total sheet mass (kg); prism density is derived from it. |
+| `Z0` | `THICK + 0.001` = `0.0011` | Initial root-body z-offset above the table (m). |
+| `MIN_FACE_AREA` | `1e-4 * S * S` = `1e-4` | Smallest accepted face area; smaller faces fail validation as slivers. |
+| `MAX_FOLD` | `0.98π` ≈ `3.0788` rad (176.4°) | Clip applied to every hinge target. |
+| `KP` / `KV` | `2.0` / `0.15` | Position-actuator stiffness / damping for hinge targets. |
+| `DAMPING` | `0.003` | Hinge joint damping. |
+| `FORCE_MAX` | `2.0` | Position-actuator force limit (N). |
+| `MU_PAPER` / `MU_TABLE` | `0.3` / `0.5` | Sliding friction coefficients for paper / table. |
+| `VIB_FREQ` | `75.0` | Table vibration frequency (Hz). |
+| `VIB_AMP_X` / `VIB_AMP_Z` | `0.0` / `0.0013` | Table vibration amplitudes (m). |
+| `EQ_SOLREF` / `EQ_SOLIMP` | `"0.005 1"` / `"0.95 0.99 0.001"` | Solver parameters for loop-edge `<connect>` equality constraints. |
+| `STRETCH_K` / `STRETCH_DAMP` / `STRETCH_MAX` | `5.0e4` / `50.0` / `1.0e-4` | Edge-stretch spring stiffness / damping / slide range. |
+| `K_PANEL` / `D_PANEL` | `1e5` / `50.0` | Panel stiffness / damping constants. |
+| `MAX_STRAIN` | `0.005` | Strain cap used by the model generator. |
+| `COLL_THICK` | `THICK * 0.1` = `1e-5` | Thin collision thickness. |
+| `M` | `+π/4` (≈ 0.7854) | Canonical +45° angle; **name is swapped** relative to the runtime sign convention (see below). |
+| `V` | `−π/4` (≈ −0.7854) | Canonical −45° angle; **name is swapped** relative to the runtime sign convention. |
+
+**Sign convention:** at runtime on `Crease.angle`, **negative = mountain, positive = valley**. The constants `M = +π/4` and `V = −π/4` are inherited from upstream with their names swapped; do not reinterpret them as the runtime convention. See [CREASE_FORMAT.md](CREASE_FORMAT.md#the-crease-type).
+
+## `origami_engine_mjx.types` — shared
+
+### `BackendName`
+
+```python
+BackendName = Literal["jax", "warp"]
+```
+
+Type alias for backend identifiers accepted by `evaluate_individual` / `evaluate_population`.
 
 ### `Crease` — frozen dataclass
 
@@ -28,142 +95,378 @@ origami_engine.__all__  # full export list
 Crease(p1: tuple[float, float], p2: tuple[float, float], angle: float)
 ```
 
-A single crease segment. `p1`/`p2` are 2D points in sheet coordinates (`0..S`, `S=1.0`); `angle` is the signed target fold angle in **radians** — negative = mountain, positive = valley.
+A single crease segment. `p1`/`p2` are 2D sheet coordinates (`0..S`, `S = 1.0`); `angle` is the signed target fold angle in **radians** — negative = mountain, positive = valley. Frozen, therefore immutable and hashable.
 
 ### `Pattern` — dataclass
 
-Returned by `build_pattern`. Fields: `valid: bool`, `reason: str`, `faces: list | None` (Shapely polygons), `edges: list[dict] | None` (each `{"i", "j", "p", "q", "crease"}`), `root: int`, `parent: dict`, `depth: dict`, `tree_edge: dict`, `loop_edges: list[int] | None`, `n_faces: int`, `n_loops: int`. See [CREASE_FORMAT.md](CREASE_FORMAT.md).
+Returned by `build_pattern`. Defaults are shown in parentheses.
+
+| Field | Type (default) | Meaning |
+|---|---|---|
+| `valid` | `bool` | Whether reconstruction and validation passed. |
+| `reason` | `str` (`""`) | Failure reason when `valid` is `False`. |
+| `faces` | `list | None` (`None`) | Shapely polygons, one per panel. |
+| `edges` | `list[dict] | None` (`None`) | Face-adjacency edges, each `{"i", "j", "p", "q", "crease"}`. |
+| `root` | `int` (`0`) | Index of the largest-area face (root body). |
+| `parent` | `dict | None` (`None`) | Face index → parent face index (`None` for the root). |
+| `depth` | `dict | None` (`None`) | Face index → spanning-tree depth. |
+| `tree_edge` | `dict | None` (`None`) | Face index → edge index connecting it to its parent. |
+| `loop_edges` | `list[int] | None` (`None`) | Edge indices not in the spanning tree. |
+| `n_faces` | `int` (`0`) | Number of faces. |
+| `n_loops` | `int` (`0`) | Number of loop edges. |
 
 ### `SimulationResult` — dataclass
 
-Returned by `run_simulation`. Fields: `model` (`mujoco.MjModel`), `data` (`mujoco.MjData`), `pattern: Pattern`, `info: dict` (`hinges`, `targets`, `n_faces`, `n_hinges`, `n_loops`), `initial_centroid: np.ndarray` (2,), `final_centroid: np.ndarray` (2,).
+Returned by `OrigamiEngine.run()` / backend `run()`.
 
-## Pattern construction & I/O
+| Field | Type (default) | Meaning |
+|---|---|---|
+| `model` | `Any` | Backend bundle: `{"mjx_model", "classic_model", "info"}` for JAX or `{"warp_model", "classic_model", "info"}` for Warp. |
+| `data` | `Any` | Final backend state (`mjx.Data` / Warp data). |
+| `pattern` | `Pattern` | Validated pattern that produced the model. |
+| `info` | `dict[str, Any]` | Metadata from `generate_xml` (`hinges`, `targets`, `n_faces`, `n_hinges`, `n_loops`). |
+| `initial_centroid` | `np.ndarray` (shape `(2,)`) | Mean XY of paper geoms before stepping. |
+| `final_centroid` | `np.ndarray` (shape `(2,)`) | Mean XY of paper geoms after stepping. |
+| `backend` | `str` (`"jax"`) | `"jax"` or `"warp"`. |
+| `extra` | `dict[str, Any]` (`{}`) | Reserved metadata; currently empty. |
+
+### `PopulationResult` — dataclass
+
+Returned by `OrigamiEngine.evaluate_population()`.
+
+| Field | Type (default) | Meaning |
+|---|---|---|
+| `scores` | `np.ndarray` | Forward-displacement score per individual, **always along +x** in the current backends (see the note under `evaluate_population`). |
+| `backend` | `str` | `"jax"` or `"warp"`. |
+| `n_individuals` | `int` | `len(population)`. |
+| `duration` | `float` | Simulated duration per individual (s). |
+| `extra` | `dict[str, Any]` (`{}`) | Reserved metadata; currently empty. |
+
+## `origami_engine_mjx.geometry` — shared
 
 ### `build_pattern(creases) -> Pattern`
 
-(`origami_engine.geometry`) Reconstruct polygonal faces and the spanning-tree hinge graph from a crease list. `creases` may be a `Crease` list, dict list, or JSON path (normalized internally is **not** done here — pass normalized creases or dicts with `p1/p2/angle`; see `normalize_creases`). Pure Shapely — no MuJoCo needed. Validation reasons: `"no faces"`, `"sliver face (area …)"`, `"faces do not tile the sheet"`, `"disconnected faces"`.
+```python
+from origami_engine_mjx import build_pattern, normalize_creases
 
-### `normalize_creases(creases) -> list[Crease]`
+pat = build_pattern(normalize_creases(raw_input))
+```
 
-(`origami_engine.serialization`) Coerce a JSON path, list of `Crease`, or list of dicts into `list[Crease]`. Raises `ValueError` (`None`, empty, missing keys, bad item type) / `TypeError` (non-list input).
+Reconstruct polygonal faces and the spanning-tree hinge graph from a sequence of **`Crease` objects**. This function does *not* call `normalize_creases`: each element must expose `.p1`/`.p2` (so dicts and JSON paths are rejected — dicts raise `AttributeError`). Pure Shapely; no MuJoCo/JAX/Warp needed.
 
-### `load_creases_from_json(path) -> list[Crease]`
+**Parameters:** `creases` — any iterable of `Crease` (normally a list). No unit/angle interpretation happens here: geometry uses endpoints only.
 
-Load and **schema-validate** a crease JSON file (both forms documented in [CREASE_FORMAT.md](CREASE_FORMAT.md)). `angle_unit` in `radian|radians|rad|degree|degrees|deg` (default radian; degrees converted via `np.deg2rad`). Raises `ValueError` on schema violation or missing keys (message includes the crease index).
+**Returns:** a `Pattern`. Rejection reasons (with `valid=False`):
 
-### `save_creases_to_json(creases, path, angle_unit="radian") -> Path`
-
-Serialize creases to JSON (object form with `angle_unit` + `creases`), creating parent dirs. `angle_unit` must be `"radian"` or `"degree"` (else `ValueError`). Angles are converted to the requested unit.
-
-### `CREASE_SCHEMA`
-
-The packaged JSON Schema (dict) loaded from `origami_engine/schemas/crease_pattern.schema.json` (shipped as package data). Use with `jsonschema.validate(payload, CREASE_SCHEMA)` in your own tooling.
-
-## Reference patterns (`origami_engine.patterns`)
-
-| Export | Description |
+| `reason` | Cause |
 |---|---|
-| `DEFAULT_PATTERN_JSON` | `Path` to the packaged `origami_engine/crease_patterns/reference_miura_4x4.json` (shipped in wheel and sdist; falls back to the repo-root `crease_patterns/` copy in odd layouts) |
-| `load_default_creases() -> list[Crease]` | Load `DEFAULT_PATTERN_JSON` (24 creases, 16 faces, 9 loop edges); only if the file is missing, fall back to the embedded `reference_miura_render_creases()` (same topology) |
-| `reference_miura_legacy_creases() -> list[Crease]` | Embedded legacy 4×4 Miura-ori crease list (used by tests/examples) |
-| `reference_miura_render_creases() -> list[Crease]` | Embedded render-tuned Miura-ori crease list (used by the renderer) |
+| `"no faces"` | The creases plus sheet boundary polygonize to nothing. |
+| `"sliver face (area {min:.2e})"` | A face is smaller than `MIN_FACE_AREA` (`1e-4`). |
+| `"faces do not tile the sheet"` | Face areas do not sum to `S²` within `1e-6`. |
+| `"disconnected faces"` | The face-adjacency graph is not connected. |
 
-## Model generation (`origami_engine.model`)
+**Raises:** `AttributeError` for non-`Crease` elements (e.g. dicts); Shapely exceptions for malformed geometry.
+
+## `origami_engine_mjx.model` — shared
 
 ### `generate_xml(pat, creases, name="origami_free", coll_thick=None) -> tuple[str, dict]`
 
-Build the MJCF XML string for a validated `Pattern` (see [SIMULATION.md](SIMULATION.md) for the full structure). Parameters: `pat` — `Pattern` from `build_pattern`; `creases` — normalized creases (target angles are looked up by edge index); `name` — model name attribute; `coll_thick` — `None` for single-geom mode, or a thickness value enabling separate visual/collision geoms. Returns `(xml, info)` where `info = {"hinges": [{"name", "face", "edge", "target"}...], "targets": np.ndarray, "n_faces", "n_hinges", "n_loops"}`. Requires MuJoCo (raises `RuntimeError` via `require_mujoco` otherwise).
+Build a MuJoCo MJCF XML string from a validated `Pattern`. No MuJoCo runtime is required.
 
-## Simulation (`origami_engine.dynamics`)
+**Parameters:**
 
-### `run_simulation(creases, duration=8.0, fold_duration=3.0, vibrate=True, amp_x=VIB_AMP_X, amp_z=VIB_AMP_Z, freq_hz=VIB_FREQ) -> SimulationResult`
+- `pat` — `Pattern` returned by `build_pattern`; must be valid and its `faces`/`edges` intact.
+- `creases` — normalized crease sequence **in the same order** used to build `pat`. Target angles are looked up by `Pattern.edges[...]["crease"]` index.
+- `name` — value of the `<mujoco model="...">` attribute.
+- `coll_thick` — `None` (default) emits one prism mesh geom per triangle with contact/friction. A float switches to separate visual (non-colliding) and thin collision prisms of that thickness.
 
-Full pipeline: normalize → build pattern → generate XML → `MjModel`/`MjData` → step loop with smoothstep actuator ramp (`s = t²(3−2t)`, `ctrl = s·targets`) and optional sinusoidal table vibration → stability check. Raises `ValueError` (`duration <= 0`, invalid pattern) and `FloatingPointError` (non-finite qpos). See [SIMULATION.md](SIMULATION.md).
+**Returns:** `(xml, info)` where `info` is:
 
-### `drive_table(model, data, t, amp_x=VIB_AMP_X, amp_z=VIB_AMP_Z, freq_hz=VIB_FREQ) -> None`
+| Key | Value |
+|---|---|
+| `hinges` | `list[{"name", "face", "edge", "target"}]`; `target = clip(sgn * crease.angle, -MAX_FOLD, MAX_FOLD)`. |
+| `targets` | `np.ndarray` of hinge targets, same order as `hinges`. |
+| `n_faces` | Number of faces. |
+| `n_hinges` | Number of tree (hinge) edges. |
+| `n_loops` | Number of loop edges closed by equality constraints. |
 
-Kinematically vibrate the support table: sets `qpos = amp·sin(2πft)` and `qvel = amp·2πf·cos(2πft)` on the `table_x`/`table_z` slide joints. Defaults `amp_x=0.0`, `amp_z=0.0013`, `freq_hz=75.0`.
+The resulting XML is accepted by classic `mujoco.MjModel.from_xml_string`, MJX-JAX `mjx.put_model`, or MJX-Warp `mjw.make_model`. See [SIMULATION.md](SIMULATION.md).
 
-### `paper_centroid(model, data) -> np.ndarray`
+## `origami_engine_mjx.serialization` — shared
 
-Mean XY of `data.geom_xpos` over all geoms whose body is not `table`. Raises `ValueError` if no paper geoms exist.
+### `CREASE_SCHEMA`
 
-## Evaluation (`origami_engine.evaluation`)
+The packaged JSON Schema (Python `dict`) loaded from `origami_engine_mjx/schemas/crease_pattern.schema.json` (JSON Schema draft 2020-12). Validate your own payloads with `jsonschema.validate(payload, CREASE_SCHEMA)`. See [CREASE_FORMAT.md](CREASE_FORMAT.md#json-file-format).
+
+### `normalize_creases(creases) -> list[Crease]`
+
+Coerce supported inputs into a fresh `list[Crease]`.
+
+| Accepted input | Behavior |
+|---|---|
+| `str` / `pathlib.Path` | Delegates to `load_creases_from_json` (schema-validated, unit converted). |
+| `list` / `tuple` of `Crease` | Returned as a new list (same objects). |
+| `list` / `tuple` of dicts | Requires `p1`, `p2`, `angle` keys; `angle` is cast with `float()` (assumed radians). |
+
+**Raises:**
+
+- `ValueError("creases must not be None.")` for `None`.
+- `ValueError("creases must contain at least one crease.")` for an empty sequence.
+- `TypeError("creases must be a list or tuple of Crease objects.")` for any other type.
+- `ValueError(f"crease at index {idx} is missing required keys: {exc}")` for an incomplete dict.
+- `ValueError(f"crease at index {idx} is not a valid Crease object or dict.")` for an unsupported element.
+
+### `load_creases_from_json(path) -> list[Crease]`
+
+Read a crease JSON file, validate it against `CREASE_SCHEMA`, and return `list[Crease]`.
+
+**Parameters:** `path` — `str` or `Path`. **Returns:** creases with angles in radians.
+
+The file may be a bare list (radians) or an object with `creases` and optional `angle_unit`. The schema enum requires a lowercase unit; the loader strips and lower-cases the parsed value before checking it. Values `"degree"`, `"degrees"`, `"deg"` convert via `np.deg2rad`, everything else (including `"radian"`, `"radians"`, `"rad"`, or an omitted key) is treated as radians.
+
+**Raises:** `ValueError("invalid crease JSON: ...")` on schema violations; `ValueError(f"crease entry at index {idx} missing key: {exc}")` on missing `p1`/`p2`/`angle`; `json.JSONDecodeError` / `OSError` from file I/O.
+
+### `save_creases_to_json(creases, path, angle_unit="radian") -> Path`
+
+Normalize and serialize creases as Form A: `{"angle_unit": <unit>, "creases": [...]}` with 2-space indentation.
+
+**Parameters:** `creases` — anything accepted by `normalize_creases`; `path` — output path (parent directories are created); `angle_unit` — `"radian"` or `"degree"` after `strip().lower()`; angles are converted with `np.rad2deg` for degrees.
+
+**Returns:** the output `Path`. **Raises:** `ValueError("angle_unit must be 'radian' or 'degree'.")` for other units; `normalize_creases` errors.
+
+## `origami_engine_mjx.patterns` — shared
+
+| Export | Description |
+|---|---|
+| `DEFAULT_PATTERN_JSON` | `Path` to the packaged `origami_engine_mjx/crease_patterns/reference_miura_4x4.json`; falls back to the repo-root `crease_patterns/reference_miura_4x4.json` only if the packaged copy is missing. |
+| `reference_miura_legacy_creases() -> list[Crease]` | Embedded legacy 4×4 Miura-ori crease list (24 creases; 16 faces, 9 loop edges). |
+| `reference_miura_render_creases() -> list[Crease]` | Embedded render-tuned 4×4 Miura-ori crease list (same 24-crease / 16-face / 9-loop topology; first crease `(0.2, 0.0) → (0.45, 0.25)`). |
+| `load_default_creases() -> list[Crease]` | Load `DEFAULT_PATTERN_JSON` via `load_creases_from_json`; falls back to `reference_miura_render_creases()` if the path disappears. |
+
+All are backend-agnostic. Both embedded builders use the swapped `M`/`V` constants described above.
+
+## `origami_engine_mjx.plotting` — shared
+
+### `plot_pattern(creases: list[Crease], pat: Pattern | None = None) -> None`
+
+Draw a flat crease-pattern figure with Matplotlib and call `plt.show()`.
+
+**Parameters:** `creases` — list of `Crease` (not normalized internally); `pat` — optional validated `Pattern` used to add face indices, loop-edge markers, and counts in the title.
+
+**Returns:** `None`. Under a non-interactive backend (e.g. Agg) `show()` does not block, so you can save `plt.gcf()` afterwards.
+
+**Style:** sheet rectangle `(0,0)-(S,S)`; mountain (`angle < 0`) crimson dashed; valley (`angle > 0`) royalblue dash-dot; each crease labelled `abs(angle)` in degrees at its midpoint; face indices in gray at representative points; loop edges as black `x`; legend lower-centre; equal aspect with axes `[-0.05S, 1.05S]` on both axes; title `"{N} creases"`, extended with `" | {M} faces | {K} loop edges (x)"` when `pat.valid`, or `" | INVALID: {reason}"` when `pat` is provided but invalid.
+
+## `origami_engine_mjx.backend` — import guards
+
+Module-level optional imports plus helpers. Nothing here is backend-specific logic; it exists so geometry/I/O can be imported without JAX/Warp.
+
+| Export | Type | Meaning |
+|---|---|---|
+| `mujoco` | module or `None` | Classic MuJoCo if import succeeded. |
+| `mjx_jax` | module or `None` | `mujoco.mjx` if `jax` + `mujoco-mjx` imported. |
+| `mjx_warp` | module or `None` | `mujoco.warp` if installed. |
+| `MUJOCO_IMPORT_ERROR` / `MJX_JAX_IMPORT_ERROR` / `MJX_WARP_IMPORT_ERROR` | `BaseException | None` | Captured import failure for each optional dependency. |
+| `require_mujoco(message="MuJoCo is required for this operation.")` | `mujoco` | Return the module or raise `RuntimeError(message)` chained from the import error. |
+| `require_mjx_jax(message="MJX-JAX backend requires 'mujoco-mjx' and 'jax'.")` | `mujoco.mjx` | Return the module or raise `RuntimeError` with install hint `pip install 'origami-engine-mjx[jax]'`. |
+| `require_mjx_warp(message="MJX-Warp backend requires 'mujoco-warp' and an NVIDIA GPU.")` | `mujoco.warp` | Return the module or raise `RuntimeError` with install hint `pip install 'origami-engine-mjx[warp]'`. |
+
+Note: `origami_engine_mjx/backends/__init__.py` imports the two backend modules when the registry is built. Those imports are failure-guarded (errors are stored, not raised), so the import itself never fails when JAX/Warp are absent.
+
+## `origami_engine_mjx.engine`
+
+### `OrigamiEngine(backend="jax")`
+
+Facade that resolves a backend through the registry and forwards simulation calls.
+
+**Parameters:** `backend` — `"jax"`, `"warp"`, or `"auto"`.
+
+- `"jax"` — MJX-JAX (CPU/GPU/TPU through JAX; differentiable; eager stepping by default).
+- `"warp"` — MJX-Warp (NVIDIA CUDA GPU; requires `mujoco-warp` + `warp-lang`).
+- `"auto"` — uses `available_backends()`; picks `"warp"` if available, else the first available name. Raises `RuntimeError("No MJX backend available. ...")` when none is available.
+
+**Raises:** `ValueError` for an unknown name (from `get_backend`); `RuntimeError` when the selected backend's dependencies are missing.
+
+**Attributes / methods:**
+
+| Member | Signature | Behavior |
+|---|---|---|
+| `.backend` | property → `SimulationBackend` | The resolved backend instance. |
+| `.backend_name` | property → `str` | `"jax"` or `"warp"`. |
+| `.device_info()` | `() -> str` | Backend-provided device description (e.g. `"jax backend=cpu, devices=[...]"`). |
+| `.run(...)` | see below | Single simulation → `SimulationResult`. |
+| `.evaluate(...)` | see below | Single score → `float`. |
+| `.evaluate_population(...)` | see below | Population scores → `PopulationResult`. |
+
+#### `OrigamiEngine.run(creases, duration=8.0, fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, coll_thick=None) -> SimulationResult`
+
+Runs one fold simulation on the selected backend.
+
+- `creases` — anything `normalize_creases` accepts (list/tuple of `Crease` or dicts, or a JSON path).
+- `duration` — simulated seconds; must be `> 0` (`ValueError("duration must be positive.")`).
+- `fold_duration` — ramp time for actuator targets; the target scale at time `t` is smoothstep `min(t/fold_duration, 1)²·(3 − 2·min(t/fold_duration, 1))`.
+- `vibrate`, `amp_x`, `amp_z`, `freq_hz` — table vibration (`qpos = amp·sin(2πft)`); defaults `VIB_AMP_X`, `VIB_AMP_Z`, `VIB_FREQ`.
+- `coll_thick` — forwarded to `generate_xml` (see above).
+
+**Note:** the facade `run` has **no `jit` parameter**. Only `JaxBackend.run(..., jit=False)` exposes JIT control.
+
+**Raises:** `ValueError` (duration, crease input, invalid pattern), `FloatingPointError("unstable simulation: non-finite joint coordinates produced.")`, `RuntimeError` (backend dependencies unavailable).
+
+#### `OrigamiEngine.evaluate(creases, duration=8.0, trajectory=(1.0, 0.0, 0.0), fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0) -> float`
+
+Calls `run(...)` (without `coll_thick`) and returns `compute_forward_displacement(result, trajectory)`.
+
+#### `OrigamiEngine.evaluate_population(population, duration=8.0, trajectory=(1.0, 0.0, 0.0), fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, batch_size=None) -> PopulationResult`
+
+Validates `trajectory`: it must be convertable to a float array and have a non-zero norm (`ValueError("trajectory direction must be non-zero.")`; a 2-vector is promoted to 3D). It then calls `backend.run_batch(...)`.
+
+> **Current behavior (verified):** the validated `trajectory` is **not passed to the backends**; both built-in `run_batch` implementations score `final_centroid[0] - initial_centroid[0]` (always +x). `batch_size` is accepted and forwarded but **ignored** by both backends. See [EVALUATION.md](EVALUATION.md#current-behaviour-caveats) and the final report.
+
+Returns a `PopulationResult` with `n_individuals=len(population)` and `extra={}`.
 
 ### `compute_forward_displacement(sim_result, trajectory=(1.0, 0.0, 0.0)) -> float`
 
-`dot(final_centroid − initial_centroid, normalize(trajectory))`. `trajectory`: 2/3-vector direction or `(N,2)/(N,3)` waypoints (N ≥ 2, direction = last − first). Raises `ValueError` on malformed/zero/non-finite input. See [EVALUATION.md](EVALUATION.md).
+Projects centroid displacement onto `trajectory`.
 
-### `evaluate_individual(creases, duration=8.0, trajectory=(1.0, 0.0, 0.0), fold_duration=3.0, vibrate=True, amp_x=VIB_AMP_X, amp_z=VIB_AMP_Z, freq_hz=VIB_FREQ, return_details=False) -> float | dict`
+```python
+delta = sim_result.final_centroid - sim_result.initial_centroid
+```
 
-Run one simulation and return its forward displacement. With `return_details=True` returns a dict: `displacement`, `initial_centroid`, `final_centroid`, `duration`, `trajectory`, `n_faces`, `n_loops`.
+- **2-element `trajectory`:** returns `dot(delta[:2], trajectory)` **without normalizing**, so the score is scaled by the vector's length.
+- **3-element `trajectory`:** builds `delta_3d = (delta_x, delta_y, 0)` and returns `dot(delta_3d, trajectory / ‖trajectory‖)`. A zero 3-vector produces `nan` (NumPy divide warning) rather than raising.
 
-### `evaluate_population(individuals, duration=8.0, trajectory=(1.0, 0.0, 0.0), fold_duration=3.0, vibrate=True, amp_x=VIB_AMP_X, amp_z=VIB_AMP_Z, freq_hz=VIB_FREQ, workers=1, error_policy="raise") -> list[float]`
+`sim_result` may be any object with `initial_centroid` and `final_centroid` attributes (normally a `SimulationResult`). No shape validation beyond NumPy broadcasting; `(N, 2)` waypoint arrays are **not** supported and raise a NumPy shape error.
 
-Score a list of crease inputs. `workers=1` → sequential; `workers>1` → `ProcessPoolExecutor` (`max_workers = min(workers, len(individuals))`). `error_policy="raise"` wraps failures in `RuntimeError("individual {i} failed ...")`; `"nan"` yields `float("nan")` for failed slots. Order preserved.
+## `origami_engine_mjx.evaluation`
 
-## Visualization (`origami_engine.plotting`)
+These wrappers construct a fresh `OrigamiEngine` per call and use only the `run`/`evaluate_population` facade (they do not pass `coll_thick` or `jit`).
 
-### `plot_pattern(creases, pat=None) -> None`
+### `evaluate_individual(creases, duration=8.0, trajectory=(1.0, 0.0, 0.0), fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, backend="jax", return_details=False) -> float | dict`
 
-Matplotlib figure of the flat pattern: sheet rectangle, Mountain = crimson dashed / Valley = royalblue dash-dot, each crease labelled with its angle in degrees, face indices in gray, loop edges as black `x`, legend, equal aspect, title `"{N} creases | {M} faces | {K} loop edges (x)"` (or `"… | INVALID: {reason}"`). Calls `plt.show()`; under the Agg backend grab the figure with `plt.gcf()` and save it (see [TUTORIALS.md](TUTORIALS.md), Tutorial 7).
+Simulate one pattern and return `compute_forward_displacement(result, trajectory)` as a `float`.
 
-## Rendering script (`origami_engine.render_individual`)
+With `return_details=True`, returns exactly these keys:
 
-Also installed as the **`origami-render`** console command (`[project.scripts]` in `pyproject.toml`).
+| Key | Value |
+|---|---|
+| `displacement` | `float` score. |
+| `initial_centroid` | `np.ndarray` shape `(2,)`. |
+| `final_centroid` | `np.ndarray` shape `(2,)`. |
+| `duration` | `float(duration)` as passed. |
+| `backend` | `result.backend` (`"jax"` / `"warp"`). |
+| `n_faces` | `int(result.pattern.n_faces)`. |
+| `n_loops` | `len(result.pattern.loop_edges or [])`. |
 
-| Function | Signature | Description |
+There is **no `trajectory` key** and no finite-score check: a non-finite displacement is returned as-is.
+
+**Raises:** `ValueError` (duration ≤ 0, bad crease input, invalid pattern), `FloatingPointError` (unstable simulation), `RuntimeError` (backend unavailable).
+
+### `evaluate_population(individuals, duration=8.0, trajectory=(1.0, 0.0, 0.0), fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, backend="jax", batch_size=None, error_policy="raise") -> list[float]`
+
+Calls `OrigamiEngine(backend).evaluate_population(...)` and returns `list(scores)` in input order.
+
+**`error_policy`:**
+
+- `"raise"` (default): after the batch, any non-finite score raises `RuntimeError("individual {i} produced non-finite score: {s}")`.
+- Any other value: the raw scores are returned unchanged. Because both backends catch per-individual exceptions and store `nan`, this behaves as a "nan" policy.
+
+**Current behavior (verified):** as with the facade, `trajectory` is validated but ignored by the backends; scores are always +x displacement. `batch_size` is forwarded but ignored. There is no `workers` parameter: both backends use sequential per-individual loops. See [EVALUATION.md](EVALUATION.md#current-behaviour-caveats).
+
+## `origami_engine_mjx.backends`
+
+### `SimulationBackend` (ABC)
+
+Common interface defined in `origami_engine_mjx/backends/base.py`.
+
+| Member | Signature | Notes |
 |---|---|---|
-| `trace_simulation` | `(creases, duration=2.0, fold_duration=3.0, fps=24, trajectory=(1,0,0), vibrate=True, amp_x, amp_z, freq_hz)` | Simulate + capture frames (720×720 `mujoco.Renderer`, camera lookat `[0.5,0.5,0.05]`, distance 2.5, azimuth 90, elevation −30). Returns dict with `frames`, centroids, `forward_displacement`, `model`, `data`, `info`, `pattern` |
-| `export_video` | `(frames, output_path, fps=24) -> bool` | MP4 via imageio/libx264 (`yuv420p`); falls back to `.gif` (returns `False`). `ValueError` if no frames |
-| `main` | `()` | CLI body: default pattern, `duration=20.0`, `fold_duration=1e-6`; writes `individual_simulation.mp4` + `render_report.json` into the **current working directory** and prints the report |
+| `name` | class attribute `str` | `"abstract"` in the base class. |
+| `build_model` | `(xml: str, info: dict) -> Any` | Compile MJCF to a backend-native model/bundle. |
+| `make_state` | `(model: Any) -> Any` | Create the initial backend state. |
+| `run` | `(creases, duration=8.0, fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, coll_thick=None) -> SimulationResult` | Single simulation (JAX subclass adds `jit=False`). |
+| `run_batch` | `(population: list, duration=8.0, fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, batch_size=None) -> np.ndarray` | Fitness array, one entry per individual. Implementations are sequential loops, not parallel. |
+| `is_available` | `() -> bool` | Dependencies installed **and** usable. |
+| `device_info` | `() -> str` | Human-readable device description. |
 
-## Constants (`origami_engine.constants`)
+### Registry functions
 
-All re-exported from the package root and from `origami_engine.simulation`:
-
-| Constant | Value | Meaning |
+| Function | Signature | Behavior |
 |---|---|---|
-| `S` | `1.0` | Sheet side length |
-| `THICK` | `1e-4` | Paper thickness |
-| `PAPER_MASS` | `0.2` | Sheet mass |
-| `Z0` | `THICK + 0.001` | Initial paper z-offset |
-| `MIN_FACE_AREA` | `1e-4 · S²` | Sliver-face rejection threshold |
-| `MAX_FOLD` | `0.98π` | Hinge target clip |
-| `KP` / `KV` | `2.0` / `0.15` | Hinge position-actuator gains |
-| `DAMPING` | `0.003` | Hinge damping |
-| `FORCE_MAX` | `2.0` | Actuator force limit |
-| `MU_PAPER` / `MU_TABLE` | `0.3` / `0.5` | Friction coefficients |
-| `VIB_FREQ` / `VIB_AMP_X` / `VIB_AMP_Z` | `75.0` / `0.0` / `0.0013` | Table vibration defaults |
-| `EQ_SOLREF` / `EQ_SOLIMP` | `"0.005 1"` / `"0.95 0.99 0.001"` | Equality constraint solver params |
-| `STRETCH_K` / `STRETCH_DAMP` / `STRETCH_MAX` | `5e4` / `50` / `1e-4` | Edge stretch spring params |
-| `K_PANEL` / `D_PANEL` | `1e5` / `50` | Panel stiffness/damping |
-| `MAX_STRAIN` / `COLL_THICK` | `0.005` / `1e-5` | Strain cap / thin collision thickness |
-| `M` / `V` | `+π/4` / `−π/4` | Canonical ±45° angles used by the reference pattern builders (note: the `Crease.angle` sign convention is negative=mountain, positive=valley) |
+| `register_backend` | `(name: str, cls: type[SimulationBackend]) -> None` | Add/replace a registry entry. |
+| `available_backends` | `() -> list[str]` | Instantiate each registered class; include its name if `is_available()` is true. Exceptions during the probe are swallowed. On a CPU-only install this is `["jax"]`. |
+| `get_backend` | `(name: str) -> SimulationBackend` | Unknown name → `ValueError(f"unknown backend {name!r}; expected one of {sorted(_REGISTRY)}")`. Unavailable backend → `RuntimeError` with install hint. |
+
+Built-ins are registered at import time as `"jax"` → `JaxBackend` and `"warp"` → `WarpBackend`.
+
+### `JaxBackend` (`origami_engine_mjx.backends.jax_backend`)
+
+`name = "jax"`; available when both `jax` and `mujoco.mjx` import successfully (CPU, GPU, or TPU).
+
+| Method | Behavior |
+|---|---|
+| `build_model(xml, info)` | `MjModel.from_xml_string(xml)` → `mjx.put_model(...)`; returns `{"mjx_model", "classic_model", "info"}`. |
+| `make_state(bundle)` | `mjx.make_data(bundle["mjx_model"])`. |
+| `run(..., jit=False)` | Normalizes creases, builds pattern/XML/model, steps `round(duration / 0.001)` times with `mjx.step`; `jit=True` wraps the step function in `jax.jit`. Zeroes hinge `qpos`, optionally drives the table, checks finite `qpos`, and returns a `SimulationResult`. |
+| `run_batch(..., batch_size=None)` | Loops over individuals, calls `run(...)`, and scores `delta[0]` (+x). Exceptions become `nan`. **Does not JIT or vmap**, and ignores `batch_size`. |
+| `is_available()` | `jax is not None and mjx is not None`. |
+| `device_info()` | `"jax not installed"` or `"jax backend=<backend>, devices=[...]"`. |
+
+### `WarpBackend` (`origami_engine_mjx.backends.warp_backend`)
+
+`name = "warp"`; available only when `mujoco.warp` imports **and** `warp.get_device().is_cuda` is true. All Warp imports are failure-guarded; importing the module does not initialise CUDA.
+
+| Method | Behavior |
+|---|---|
+| `build_model(xml, info)` | `MjModel.from_xml_string(xml)` → `mjw.make_model(...)`; returns `{"warp_model", "classic_model", "info"}`. |
+| `make_state(bundle)` | `mjw.make_data(bundle["warp_model"])`. |
+| `run(..., coll_thick=None)` | Same normalization/validation as JAX, then a Python loop over `round(duration / 0.001)` `mjw.step` calls with NumPy control writes. No `jit` parameter. |
+| `run_batch(..., batch_size=None)` | Sequential per-individual loop calling `run(...)`, scoring `delta[0]`; exceptions become `nan`. **Ignores `batch_size`**; native batched Warp execution is not implemented. |
+| `is_available()` | `False` when `mujoco`/`mujoco.warp` are missing or no CUDA device is present (`warp.get_device().is_cuda`). |
+| `device_info()` | `"mujoco-warp not installed"`, `"warp device=<dev>, cuda=<bool>"`, or a diagnostic error string. |
+
+See [BACKENDS.md](BACKENDS.md) for the semantics comparison and [COLAB_GPU.md](COLAB_GPU.md) for GPU validation steps.
+
+## `origami_engine_mjx.schemas` — packaged data
+
+This directory has no `__init__.py`; it ships one data file, `crease_pattern.schema.json` (JSON Schema draft 2020-12, `$id` `https://example.org/origami-simulator/crease_pattern.schema.json`). It is loaded into `CREASE_SCHEMA` and included in wheels/sdists via package data.
+
+## `origami_engine_mjx.crease_patterns` — packaged data
+
+This directory has no `__init__.py`; it ships `reference_miura_4x4.json`, the 4×4 Miura-ori reference pattern (24 creases, 16 faces, 9 loop edges) with `"angle_unit": "degree"` and ±45° angles. Access it through `DEFAULT_PATTERN_JSON` / `load_default_creases()`.
 
 ## Complete workflow example
 
 ```python
-from origami_engine import (
+from origami_engine_mjx import (
+    OrigamiEngine,
     build_pattern,
-    evaluate_individual,
+    generate_xml,
     load_default_creases,
+    normalize_creases,
     plot_pattern,
-    run_simulation,
 )
 
-creases = load_default_creases()  # 24-crease Miura-ori reference
-pat = build_pattern(creases)  # validate topology
+# 1. Load the reference Miura-ori pattern (24 creases)
+creases = load_default_creases()
+
+# 2. Reconstruct and validate the face graph (shared Shapely geometry)
+pat = build_pattern(creases)
 assert pat.valid, pat.reason
 
-plot_pattern(creases, pat)  # visualize the flat pattern
+# 3. Visualize the flat crease pattern
+plot_pattern(creases, pat)
 
-result = run_simulation(creases, duration=8.0)
-print(result.info["n_faces"], "faces,", result.info["n_hinges"], "hinges")
+# 4. Inspect the generated MJCF (no MuJoCo runtime needed)
+xml, info = generate_xml(pat, creases)
+print(info["n_faces"], info["n_hinges"], info["n_loops"])
 
-score = evaluate_individual(creases, duration=8.0, trajectory=(1.0, 0.0, 0.0))
-print(f"forward displacement: {score:.6f} m")
+# 5. Run the MJX-JAX simulation (eager, CPU default; use a GPU for speed)
+engine = OrigamiEngine(backend="jax")
+result = engine.run(normalize_creases(creases), duration=2.0, vibrate=False)
+
+# 6. Score it: forward displacement along +x
+score = engine.evaluate(creases, trajectory=(1.0, 0.0, 0.0))
+print(f"forward displacement: {score:.6f} m  (backend={result.backend})")
 ```
 
 ## See also
@@ -171,6 +474,9 @@ print(f"forward displacement: {score:.6f} m")
 - [GETTING_STARTED.md](GETTING_STARTED.md) — installation (pip / uv / source) and first run
 - [TUTORIALS.md](TUTORIALS.md) — nine step-by-step recipes
 - [CREASE_FORMAT.md](CREASE_FORMAT.md) — crease & JSON schema reference
-- [SIMULATION.md](SIMULATION.md) — XML model structure, step loop, rendering
-- [EVALUATION.md](EVALUATION.md) — fitness functions and population evaluation
+- [SIMULATION.md](SIMULATION.md) — XML model structure and stepping loop
+- [EVALUATION.md](EVALUATION.md) — fitness functions, population evaluation, current caveats
 - [ARCHITECTURE.md](ARCHITECTURE.md) — module layout and data flow
+- [BACKENDS.md](BACKENDS.md) — MJX-JAX vs MJX-Warp: semantics, features, limitations
+- [COLAB_GPU.md](COLAB_GPU.md) — Colab T4 setup, validation checklist, benchmarking
+- [MIGRATION.md](MIGRATION.md) — migrating from `origami-engine` (classic MuJoCo)
