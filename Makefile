@@ -5,7 +5,7 @@ PYTHON ?= python
 VENV  ?= .venv
 PY    ?= $(VENV)/bin/python
 
-.PHONY: help venv install test example examples lint format typecheck clean
+.PHONY: help venv install test example examples lint format typecheck docs-check clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -37,6 +37,9 @@ format: ## Apply ruff formatting
 
 typecheck: ## Run mypy on the MJX package
 	$(PY) -m mypy origami_engine_mjx --config-file pyproject.toml
+
+docs-check: ## Verify Markdown links and heading anchors
+	$(PY) scripts/check_docs_links.py
 
 clean: ## Remove generated artifacts and caches
 	rm -f examples/*.png

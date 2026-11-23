@@ -1,6 +1,6 @@
 # Evaluation & Fitness
 
-> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · **Evaluation** · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Contributing](CONTRIBUTING.md)
+> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · **Evaluation** · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
 
 This document describes the fitness signal used throughout origami-engine-mjx and how to evaluate patterns and populations of patterns. All statements below were verified against the implementation (`engine.py`, `evaluation.py`, `backends/jax_backend.py`, `backends/warp_backend.py`).
 
@@ -149,6 +149,7 @@ scores = evaluate_population(
 ## See also
 
 - [SIMULATION.md](SIMULATION.md) — what `engine.run` does with these parameters
+- [OPTIMIZATION_ES.md](OPTIMIZATION_ES.md) — using the fitness signal as a black-box objective
 - [TUTORIALS.md](TUTORIALS.md) — Tutorials 3 and 6
 - [API_REFERENCE.md](API_REFERENCE.md) — full signatures and raise conditions
 - [`examples/01_evaluate_cpu_jax.py`](../examples/01_evaluate_cpu_jax.py) — minimal single + population run on CPU

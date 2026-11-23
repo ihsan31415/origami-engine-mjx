@@ -1,6 +1,6 @@
 # Architecture
 
-> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · **Architecture** · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Contributing](CONTRIBUTING.md)
+> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · **Architecture** · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
 
 `origami_engine_mjx` keeps all physics-independent logic in shared modules and isolates backend-specific execution in `origami_engine_mjx/backends/`.
 
@@ -77,5 +77,6 @@ SimulationResult(initial_centroid, final_centroid, ...) → fitness = projection
 - [SIMULATION.md](SIMULATION.md) — detailed model structure, stepping loop, constants
 - [BACKENDS.md](BACKENDS.md) — MJX-JAX vs MJX-Warp execution details
 - [CREASE_FORMAT.md](CREASE_FORMAT.md) — crease input format and validation
+- [INTEGRATIONS.md](INTEGRATIONS.md) — where `origami_engine_mjx/integrations/` sits in the package
 - [MIGRATION.md](MIGRATION.md) — API mapping from classic `origami-engine`
 - [examples/README.md](../examples/README.md) — runnable demo scripts

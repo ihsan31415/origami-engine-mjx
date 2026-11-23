@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `origami_engine_mjx/integrations/` — ES/RL/AI **integration interfaces**
+  (no optimization or learning algorithms shipped): `SearchSpace` (fixed-
+  topology fold-angle genome), `OrigamiEvaluator` (stateless, picklable
+  objective + behavior descriptors), optimizer adapters for `pymoo` /
+  `nevergrad` / `cma` / `evosax`, Gymnasium `OrigamiEnv` / `OrigamiVectorEnv`,
+  pure-JAX `reset` / `step` (jittable / vmappable), and plumbing (seeding,
+  genome/checkpoint I/O, JSONL/CSV run logging, throughput benchmark).
+- Optional extras `[opt]` (optimizer adapters) and `[rl]` (gymnasium); `[all]`
+  now includes them.
+- Documentation: `docs/README.md` (index), `docs/INTEGRATIONS.md`,
+  `docs/OPTIMIZATION_ES.md`, `docs/RL.md`, and examples
+  `examples/04_optimize_es.py` and `examples/05_rl_env.py`.
+- Tests: `tests_mjx/test_integrations.py` and `tests_mjx/test_rl_env.py`.
+
 ### Removed
 - Legacy classic-MuJoCo package `origami_engine/`, its test suite `tests/`,
   the `experiments/` archive, and the five classic example scripts
