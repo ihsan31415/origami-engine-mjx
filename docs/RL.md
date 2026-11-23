@@ -170,9 +170,12 @@ pip install 'origami-engine-mjx[rl]'   # gymnasium
 pip install 'origami-engine-mjx[jax]'  # mujoco-mjx, jax
 ```
 
-`OrigamiEnv` and the `jax_env` symbols are exposed lazily from
+`OrigamiEnv` / `OrigamiVectorEnv` (and the `jax_env` helpers `EnvState`,
+`EnvParams`, `build_jax_model`, `make_params`, `observe`) are exposed lazily from
 `origami_engine_mjx.integrations`, so importing the package never pulls in
-Gymnasium or JAX unless you touch them.
+Gymnasium or JAX unless you touch them. The pure-JAX `reset` / `step` functions
+are reached through the `integrations.jax_env` submodule, since their names are
+too generic to re-export safely.
 
 ## See also
 

@@ -54,8 +54,8 @@ space = SearchSpace.from_creases(creases, angle_limits=(-1.5, 1.5), name="my_pat
 ### Bounds, sampling, repair
 
 ```python
-genome = space.sample(seed=0)  # uniform in angle space, (dim,)
-batch = space.sample(seed=0, size=32)  # (32, dim)
+genome = space.sample(0)  # uniform in angle space, (dim,); first arg is a seed or RNG
+batch = space.sample(0, size=32)  # (32, dim)
 
 z = space.to_normalized(genome)  # view in [-1, 1]
 back = space.from_normalized(z)  # back to angles (clipped)

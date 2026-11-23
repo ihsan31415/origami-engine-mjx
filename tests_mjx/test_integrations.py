@@ -268,6 +268,15 @@ def test_run_logger_csv(tmp_path):
     assert "genome" in text.splitlines()[0]
 
 
+def test_run_logger_csv_infers_descriptor_columns(tmp_path):
+    path = tmp_path / "run.csv"
+    with RunLogger(path) as log:
+        log.log(EvalRecord(fitness=1.0, raw=1.0, descriptors={"displacement_x": 0.5}), genome=[0.1, 0.2])
+    lines = path.read_text().splitlines()
+    assert "displacement_x" in lines[0]
+    assert "0.5" in lines[1]
+
+
 def test_run_logger_rejects_bad_format(tmp_path):
     with pytest.raises(ValueError):
         RunLogger(tmp_path / "run.txt", format="xml")

@@ -111,6 +111,7 @@ class BatchResult:
     descriptors: dict[str, np.ndarray]
     wall_time: float
     n_cache_hits: int = 0
+    """Cumulative cache hits on the evaluator, not just this batch."""
 
     @property
     def n(self) -> int:

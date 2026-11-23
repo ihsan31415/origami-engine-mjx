@@ -176,6 +176,10 @@ class RunLogger:
 
     def log(self, record: EvalRecord, genome=None) -> None:
         """Append a single :class:`~origami_engine_mjx.integrations.evaluator.EvalRecord`."""
+        # Infer the descriptor columns from the first record *before* opening the
+        # file, so the CSV header includes them (JSONL does not need a header).
+        if self._descriptor_names is None:
+            self._descriptor_names = [k for k in record.descriptors]
         self._ensure_open()
         row = {
             "genome": None if genome is None else [float(x) for x in np.asarray(genome, dtype=float).reshape(-1)],
@@ -186,8 +190,6 @@ class RunLogger:
         }
         for k, v in record.descriptors.items():
             row[k] = float(v)
-        if self._descriptor_names is None:
-            self._descriptor_names = [k for k in record.descriptors]
         if self.format == "jsonl":
             self._fh.write(json.dumps(row) + "\n")
         else:
