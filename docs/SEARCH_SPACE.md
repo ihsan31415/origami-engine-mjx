@@ -251,17 +251,22 @@ one:
 ```python
 from origami_engine_mjx.integrations import DesignSpace, OrigamiEvaluator
 
-space = DesignSpace.angles_and_geometry()
+space = DesignSpace.from_default_pattern()  # one fixed topology
 evaluator = OrigamiEvaluator(space, backend="jax")
 result = evaluator.evaluate_batch(space.sample(0, size=8), return_details=False)
-print(result.paths)  # e.g. ['batched', 'batched', ...] for a fixed topology
+print(result.paths)  # ['batched', ...] — the whole batch is one topology
+
+geo = DesignSpace.angles_and_geometry()  # geometry can change the topology
+geo_result = OrigamiEvaluator(geo, backend="jax").evaluate_batch(geo.sample(0, size=8), return_details=False)
+print(geo_result.paths)  # mostly ['single', ...] — each random geometry differs
 ```
 
-For the built-in backends, `run_batch` already loops per individual, so a
-mixed-topology batch is scored **exactly like one-by-one evaluation**, only
-grouped. The bucketing is a bookkeeping optimisation (same-topology rows share
-one backend call), not a new physics path — see [EVALUATION.md](EVALUATION.md)
-for the measured cost caveats.
+For the built-in backends, `run_batch` already loops per individual (and
+rebuilds the model each iteration), so a mixed-topology batch is scored
+**exactly like one-by-one evaluation**, only grouped. The bucketing is therefore
+bookkeeping only — same-topology rows share one backend *call*, but that call
+still loops per individual — and currently gives **no throughput benefit**; see
+[EVALUATION.md](EVALUATION.md) for the cost caveats.
 
 ## 11. Determinism
 

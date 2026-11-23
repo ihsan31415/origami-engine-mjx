@@ -153,8 +153,9 @@ The `OrigamiEvaluator` in `origami_engine_mjx.integrations` accepts a
 the space can change the crease **topology** between individuals (geometry or
 presence variables), the fast batch path decodes every genome, groups them by
 `topology_signature` and sends one group per backend call. Because both built-in
-backends already loop per individual, each group is scored **exactly like
-one-by-one evaluation**; the grouping only avoids redundant model builds. Each
+backends already loop per individual (and rebuild the model inside that loop),
+each group is scored **exactly like one-by-one evaluation**; the grouping is
+bookkeeping only and currently gives **no throughput benefit**. Each
 result records which path scored it, on `EvalRecord.path` / `BatchResult.paths`:
 `batched` (a same-topology batch), `bucketed` (a topology group of more than
 one), `single` (one individual), `invalid` (decode failed) or `cached`.
