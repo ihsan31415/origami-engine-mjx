@@ -60,7 +60,7 @@ Install once per clone; hooks then run on every commit:
 pre-commit install
 ```
 
-Configured hooks (`.pre-commit-config.yaml`): `ruff --fix`, `ruff-format`, and `mypy` (with `files: ^origami_engine(_mjx)?/`, so it checks both packages).
+Configured hooks (`.pre-commit-config.yaml`): `ruff --fix`, `ruff-format`, and `mypy` (with `files: ^origami_engine_mjx/`).
 
 ## Code style & type checking
 
@@ -111,10 +111,7 @@ origami-engine-mjx/
 │   ├── 01_evaluate_cpu_jax.py
 │   ├── 02_evaluate_warp_gpu.py
 │   ├── 03_batch_population.py
-│   ├── colab_gpu_validation.py  # GPU benchmark (Colab T4)
-│   └── 01_evaluate_reference.py … 05_plot_pattern.py  # legacy classic-MuJoCo demos
-├── experiments/             # Prototype notebooks, timeline
-│   └── TIMELINE.md
+│   └── colab_gpu_validation.py  # GPU benchmark (Colab T4)
 ├── origami_engine_mjx/      # MJX dual-backend package
 │   ├── backends/            # MJX-JAX and MJX-Warp implementations
 │   ├── crease_patterns/     # Packaged reference Miura JSON

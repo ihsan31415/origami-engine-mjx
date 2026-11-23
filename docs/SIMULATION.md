@@ -122,7 +122,7 @@ Defined in `origami_engine_mjx/constants.py` and re-exported at package level:
 
 ## Rendering
 
-Neither MJX backend renders directly — `mujoco.Renderer` works only with classic `MjModel`/`MjData`. For video rendering, use classic MuJoCo (`origami_engine.render_individual`) or copy MJX state back with `mjx.get_data`. The MJX package does not ship a renderer console command.
+Neither MJX backend renders directly — `mujoco.Renderer` works only with classic `MjModel`/`MjData`. For video rendering, install the classic `origami-engine` package (in a separate environment; both packages define the `origami_engine` module) or copy MJX state back with `mjx.get_data` into a classic `MjData`.
 
 ## See also
 
@@ -131,4 +131,3 @@ Neither MJX backend renders directly — `mujoco.Renderer` works only with class
 - [ARCHITECTURE.md](ARCHITECTURE.md) — module responsibilities and data flow
 - [BACKENDS.md](BACKENDS.md) — MJX-JAX vs MJX-Warp semantics
 - [COLAB_GPU.md](COLAB_GPU.md) — GPU validation and benchmarking
-- [TIMELINE.md](../experiments/TIMELINE.md) — how these physics parameters were tuned in the prototype notebooks (in `experiments/`)

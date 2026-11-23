@@ -1,10 +1,7 @@
-include origami_engine/schemas/*.json
-include origami_engine/crease_patterns/*.json
+include crease_patterns/*.json
 include docs/*.md
 include docs/crease_pattern_plot.png
 include examples/*.py
 include examples/README.md
-include experiments/TIMELINE.md
-include experiments/prototype_notebooks.zip
 include LICENSE
 include README.md

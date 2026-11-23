@@ -42,7 +42,7 @@ The package is available from PyPI. Choose the installation that matches your ne
 | + MJX-Warp backend (requires NVIDIA CUDA GPU) | `pip install 'origami-engine-mjx[warp]'` |
 | Everything (JAX + Warp + dev tooling) | `pip install 'origami-engine-mjx[all]'` |
 
-The `render` extra only pulls in `imageio[ffmpeg]` for the **legacy** `origami-engine` scripts; this package ships no renderer.
+This package ships **no** video renderer; see [MIGRATION.md](MIGRATION.md#origami-render-and-video-rendering) for the rendering options.
 
 ### Development install (editable, with all deps)
 
@@ -50,7 +50,7 @@ The `render` extra only pulls in `imageio[ffmpeg]` for the **legacy** `origami-e
 git clone https://github.com/ihsan31415/origami-engine-mjx.git
 cd origami-engine-mjx
 python -m venv .venv && . .venv/bin/activate
-pip install -e ".[dev,jax,warp,render]"
+pip install -e ".[dev,jax,warp]"
 ```
 
 ### Verifying the install

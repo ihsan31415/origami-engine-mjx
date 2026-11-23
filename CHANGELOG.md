@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- Legacy classic-MuJoCo package `origami_engine/`, its test suite `tests/`,
+  the `experiments/` archive, and the five classic example scripts
+  (`01_evaluate_reference.py`, `02_json_input.py`, `03_inspect_pattern.py`,
+  `04_evaluate_population.py`, `05_plot_pattern.py`). The package has been
+  MJX-only since the wheel only ever shipped `origami_engine_mjx*`; the classic
+  code remains available on PyPI as `origami-engine` and in this repository's
+  git history at the `legacy-classic-engine` tag.
+- `make render` (the classic renderer was removed with the legacy package);
+  `make example` now runs the MJX CPU quick-start.
+
 ## [1.1.0] - 2026-11-22
 
 ### Added

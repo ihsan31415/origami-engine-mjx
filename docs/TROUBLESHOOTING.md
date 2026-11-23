@@ -58,7 +58,7 @@ See [CREASE_FORMAT.md](CREASE_FORMAT.md) for the full format rules and the JSON 
 |---|---|---|
 | `import origami_engine_mjx`, `OrigamiEngine` | identical | identical |
 | `load_default_creases()` | reads the packaged `origami_engine_mjx/crease_patterns/reference_miura_4x4.json` | same file (byte-identical to repo-root `crease_patterns/reference_miura_4x4.json`) |
-| `tests/`, `examples/`, `Makefile` targets | not shipped | available (`make test`, `make examples`, …) |
+| `tests_mjx/`, `examples/`, `Makefile` targets | not shipped | available (`make test`, `make examples`, …) |
 | `plot_pattern` output | caller saves `plt.gcf()` wherever they choose | same behavior |
 | Video files | not produced by this package | not produced by this package |
 | Ruff / mypy / pytest | identical | identical |

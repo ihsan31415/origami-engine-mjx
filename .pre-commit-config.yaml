@@ -15,6 +15,5 @@ repos:
           - mujoco>=2.3
           - numpy>=1.24
           - shapely>=2.0
-          - imageio>=2.34
         args: [--config-file=pyproject.toml]
-        files: ^origami_engine(_mjx)?/
+        files: ^origami_engine_mjx/

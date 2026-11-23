@@ -14,7 +14,7 @@ The following table maps classic `origami_engine` functions to `origami_engine_m
 | `evaluation.evaluate_individual(creases, ...)` (classic MuJoCo) | `evaluate_individual(creases, ..., backend="jax")` | Same params; the new `backend` param selects MJX-JAX or MJX-Warp (legacy had no backend selector) |
 | `evaluation.evaluate_population(pop, ...)` (classic MuJoCo) | `evaluate_population(pop, ..., backend="jax")` | `workers` has no equivalent; both MJX backends loop sequentially |
 | `model.generate_xml` imported `require_mujoco` | `model.generate_xml` is pure XML generation (no MuJoCo needed) | Same function signature; MuJoCo import guard removed |
-| `render_individual.py` renders via `mujoco.Renderer` | unchanged (classic MuJoCo still used for rendering) | Legacy script still works with classic `MjModel`/`MjData` |
+| `render_individual.py` renders via `mujoco.Renderer` | **removed from this repository** | Available in the legacy `origami-engine` package on PyPI (or tag `legacy-classic-engine`); see [TROUBLESHOOTING.md](TROUBLESHOOTING.md#rendering-and-video) |
 | `evaluate_population(..., workers=N)` (ProcessPoolExecutor) | `engine.evaluate_population(..., batch_size=N)` | `workers` does not exist; `batch_size` is accepted but currently ignored (sequential per-individual loops) |
 | `origami-render` CLI (entry point `origami_engine.render_individual:main`) | does not exist in `origami-engine-mjx` | See [TROUBLESHOOTING.md](TROUBLESHOOTING.md#rendering-and-video) for workarounds |
 
@@ -53,7 +53,7 @@ result = engine.evaluate_population(pop, duration=2.0)
 | **Control arrays** | NumPy arrays OK | Must pass `jax.numpy` arrays to MJX controls; mixing causes `AttributeError` |
 | **Name lookups** | `model.joint("table_x").qposadr` etc. | Use classic `MjModel` kept in the bundle; MJX model has no `.joint()` views |
 | **Population `workers`** | `ProcessPoolExecutor` with `workers=N` parameter | Does not exist — both MJX backends evaluate sequentially; `batch_size` is accepted but currently ignored |
-| **Render video** | `make render` → `individual_simulation.mp4` | MJX package has no renderer; use classic MuJoCo or copy state via `mjx.get_data` |
+| **Render video** | legacy `make render` → `individual_simulation.mp4` | MJX package has no renderer; use the classic `origami-engine` package or copy state via `mjx.get_data` |
 | **Constants sign convention** | `M = π/4` = valley, `V = -π/4` = mountain | Same constants inherited; documented in [CREASE_FORMAT.md](CREASE_FORMAT.md) |
 | **`origami-render` entry point** | installed as `origami-render` CLI | removed from `pyproject.toml` (module doesn't exist); see [TROUBLESHOOTING.md](TROUBLESHOOTING.md) |
 
@@ -63,9 +63,9 @@ The legacy `origami-engine` installed a console script `origami-render` that ren
 
 **`origami-engine-mjx` does not ship a renderer.** To render video:
 
-- Use classic MuJoCo: `python -m origami_engine.render_individual` (still available in the legacy package).
+- Install the legacy package for its CLI but **not** in the same environment as `origami-engine-mjx` (both packages define the `origami_engine` module): `pip install origami-engine` (classic MuJoCo), then `origami-render`.
 - Copy MJX state back: `mjx.get_data(model, data)` → classic `MjData` → `mujoco.Renderer`.
-- The `examples/` folder includes `05_plot_pattern.py` for static PNG output (Agg backend).
+- The removed `render_individual.py` remains available in this repository's git history at the `legacy-classic-engine` tag.
 
 ## See also
 

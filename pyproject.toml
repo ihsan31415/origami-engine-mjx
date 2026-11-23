@@ -42,9 +42,6 @@ warp = [
     "mujoco-warp>=3.0",
     "warp-lang>=1.0",
 ]
-render = [
-    "imageio[ffmpeg]>=2.34",
-]
 dev = [
     "pytest>=8",
     "pytest-cov>=4.0",
@@ -53,7 +50,7 @@ dev = [
     "pre-commit>=3.8",
 ]
 all = [
-    "origami-engine-mjx[jax,warp,render,dev]",
+    "origami-engine-mjx[jax,warp,dev]",
 ]
 
 [tool.setuptools.packages.find]
