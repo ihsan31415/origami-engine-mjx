@@ -5,9 +5,9 @@
 | Item | Value |
 |---|---|
 | Branch | `feat/optimization-integrations-v1` (from `chore/remove-legacy-classic-engine` @ `b891a5c`) |
-| Commits on branch | 20 (local only — **not** pushed, tagged, or published) |
+| Commits on branch | see `git log --oneline chore/remove-legacy-classic-engine..HEAD` (local only — **not** pushed, tagged, or published) |
 | Review cycles run | 8 (the agreed maximum); cycles 1–7 fixed interface/code issues, cycle 8 fixed pre-existing doc/CI issues |
-| Head | `43b43c2` |
+| Head | branch tip on `feat/optimization-integrations-v1` (see `git log -1`; this report is the last commit) |
 | Version | `1.0.0` (`pyproject.toml` + `origami_engine_mjx.__version__`) |
 
 The branch adds the **environment / evaluator substrate** for external search and
@@ -226,7 +226,7 @@ gh release create v1.0.0 --notes-from-tag dist/*
 
 ---
 
-## 9. Commit list (all local)
+## 9. Commit list (local; the commit containing this report is last)
 
 ```
 6fb9c81 feat(integrations): add ES/RL/AI integration interfaces
