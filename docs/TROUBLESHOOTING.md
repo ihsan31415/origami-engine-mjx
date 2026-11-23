@@ -6,19 +6,19 @@ Common problems and their fixes, grouped by stage.
 
 ## Installation
 
-**`ERROR: Package 'origami-engine' requires a different Python`** — the package needs Python ≥ 3.10 (CI tests 3.10 and 3.11). Create the environment with a supported interpreter: `python3.11 -m venv .venv` or `uv venv --python 3.11`.
+**`ModuleNotFoundError: No module named 'origami_engine_mjx'`** — the package is not installed in the interpreter you are using. Check `which python` / `python -c "import sys; print(sys.executable)"` and reinstall into that environment (`pip install origami-engine-mjx` or `pip install -e ".[dev]"` from a checkout).
 
-**`uv pip install` says "No virtual environment found"** — `uv pip` targets the *active* environment. Either activate one (`. .venv/bin/activate`) or use project mode (`uv add origami-engine` + `uv run ...`). See [GETTING_STARTED.md](GETTING_STARTED.md), Method 2.
+**`ERROR: Package 'origami-engine-mjx' requires a different Python**`** — the package needs Python ≥ 3.10 (CI tests 3.10 and 3.11). Create the environment with a supported interpreter: `python3.11 -m venv .venv` or `uv venv --python 3.11`.
 
-**`mujoco` fails to install / import on an exotic platform** — MuJoCo ships manylinux/macOS/windows wheels; on other platforms install fails at pip time. On headless Linux servers the import works but **rendering** needs a GL backend — see below.
-
-**`imageio` cannot find ffmpeg** — the dependency is `imageio[ffmpeg]`, which bundles an ffmpeg binary, so no system ffmpeg is needed. If you installed without the extra (`pip install imageio`), reinstall with `pip install "imageio[ffmpeg]"`. `export_video` falls back to GIF if MP4 encoding fails.
+**`uv pip install` says "No virtual environment found"** — `uv pip` targets the *active* environment. Either activate one (`. .venv/bin/activate`) or use project mode (`uv add origami-engine-mjx` + `uv run ...`).
 
 ## Import errors
 
-**`ModuleNotFoundError: No module named 'origami_engine'`** — the package is not installed in the interpreter you are using. Check `which python` / `python -c "import sys; print(sys.executable)"` and reinstall into that environment (`pip install origami-engine` or `pip install -e ".[dev]"` from a checkout).
+**`ModuleNotFoundError: No module named 'mujoco'`** — MuJoCo ships manylinux/macOS/windows wheels; on other platforms install fails at pip time. On headless Linux servers the import works but **rendering** needs a GL backend — see below.
 
-**`RuntimeError: MuJoCo is required ...` from `run_simulation` / `generate_xml`** — expected behavior of the import guard (`backend.py`) when `mujoco` is not installed. Pure-geometry functions (`build_pattern`, `normalize_creases`, `load_creases_from_json`, `plot_pattern`, constants) still work without it.
+**`RuntimeError: MuJoCo is required for this operation.`** — expected behavior of the import guard (`backend.py`) when `mujoco` is not installed. Pure-geometry functions (`build_pattern`, `normalize_creases`, `load_creases_from_json`, `plot_pattern`, constants) still work without it.
+
+**`RuntimeError: MJX-JAX backend requires 'mujoco-mjx' and 'jax'.**`**** — install with `pip install 'origami-engine-mjx[jax]'`. Same for Warp: `pip install 'origami-engine-mjx[warp]'`.
 
 ## Headless / no-display rendering
 
@@ -35,7 +35,7 @@ export MUJOCO_GL=disable   # skip rendering entirely (simulation still runs)
 
 ## Invalid crease patterns
 
-`build_pattern` returns `pat.valid == False` (and `run_simulation` raises `ValueError("invalid crease pattern: {reason}")`) for:
+`build_pattern` returns `pat.valid == False` (and `engine.run` raises `ValueError("invalid crease pattern: {reason}")`) for:
 
 | `reason` | Cause | Fix |
 |---|---|---|
@@ -50,27 +50,28 @@ See [CREASE_FORMAT.md](CREASE_FORMAT.md) for the full format rules and the JSON 
 
 **`FloatingPointError: unstable simulation: non-finite joint coordinates produced.`** — the fold exploded (usually extreme target angles, too-long `duration`, or aggressive vibration). Try: smaller fold angles (`|angle| ≤ MAX_FOLD = 0.98π` is enforced, but smaller is more stable), shorter `duration`, `vibrate=False` or smaller `amp_z`/`freq_hz`, or `generate_xml(..., coll_thick=...)` thin-collision mode.
 
-**Simulation is slow** — cost is `duration / 0.001` steps (8 s ⇒ 8000 `mj_step` calls) plus mesh contact. Use short `duration` while iterating; parallelize populations with `evaluate_population(..., workers=N)`.
+**Simulation is slow** — cost is `duration / 0.001` steps (8 s ⇒ 8000 step calls) plus mesh contact. Use short `duration` while iterating; parallelize populations with `evaluate_population(..., backend=..., batch_size=...)`.
 
 ## PyPI install vs source checkout
 
-| Behavior | PyPI wheel | Source checkout (`pip install -e .`) |
+| Behavior | PyPI wheel | Source checkout (`pip install -e .[dev,jax,warp]`) |
 |---|---|---|
-| `import origami_engine`, `origami-render` CLI | identical | identical |
-| `load_default_creases()` | reads the packaged `origami_engine/crease_patterns/reference_miura_4x4.json` | same file (byte-identical to repo-root `crease_patterns/reference_miura_4x4.json`) |
+| `import origami_engine_mjx`, `OrigamiEngine` | identical | identical |
+| `load_default_creases()` | reads the packaged `origami_engine_mjx/crease_patterns/reference_miura_4x4.json` | same file (byte-identical to repo-root `crease_patterns/reference_miura_4x4.json`) |
 | `tests/`, `examples/`, `Makefile` targets | not shipped | available (`make test`, `make examples`, …) |
-| `origami-render` output files | written to the current working directory | written to the repo root (Makefile runs from there) |
+| `plot_pattern` output / video files | written to the current working directory | written to the repo root (Makefile runs from there) |
+| Ruff / mypy / pytest | identical | identical |
+| `generate_xml` output | identical | identical |
 
 ## Upgrading / uninstalling
 
 ```bash
-pip install -U origami-engine     # upgrade        | uv pip install -U origami-engine
-pip uninstall origami-engine      # remove         | uv pip uninstall origami-engine
-uv tool uninstall origami-engine  # if installed via `uv tool install`
+pip install -U origami-engine-mjx     # upgrade        | uv pip install -U origami-engine-mjx
+pip uninstall origami-engine-mjx      # remove         | uv pip uninstall origami-engine-mjx
 ```
 
 ## Getting help
 
-- Search/open an issue: <https://github.com/ihsan31415/origami-engine/issues>
+- Search/open an issue: <https://github.com/ihsan31415/origami-engine-mjx/issues>
 - When reporting, include: Python version, install method (pip/uv/wheel/editable), the exact command, the full traceback, and a minimal crease list that reproduces the problem.
 - For usage questions, check [TUTORIALS.md](TUTORIALS.md) and [GLOSSARY.md](GLOSSARY.md) first.

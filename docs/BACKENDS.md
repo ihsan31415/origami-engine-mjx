@@ -1,5 +1,7 @@
 # Backends: MJX-JAX vs MJX-Warp
 
+> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Contributing](CONTRIBUTING.md)
+
 ## MJX-JAX (`backend="jax"`)
 
 - **Engine**: `mujoco.mjx` running on JAX/XLA.
@@ -34,3 +36,31 @@ The engine never silently switches backends after construction. If you request `
 - **Rendering**: neither MJX backend renders directly. Use classic MuJoCo (`MjModel`/`MjData` + `mujoco.Renderer`) for video, copying state via `mjx.get_data`.
 - **Model features**: MJX supports the features used here (hinge/slide/free joints, equality `connect`, position actuators, mesh geoms, `implicitfast`), verified by successful `mjx.put_model` + stepping on CPU. Warp feature support is a subset — validate on GPU.
 - **Numerical differences**: MJX uses float32 XLA kernels; classic MuJoCo uses float64 C++. Expect small numerical differences; investigate rather than forcing identical outputs.
+
+## Feature/limitation comparison table
+
+| Feature | Classic `origami_engine` (MuJoCo C++) | MJX-JAX | MJX-Warp |
+|---|---|---|---|
+| State semantics | In-place (`mujoco.mj_step`) | Immutable pytree (`mjx.step` returns new state) | Warp struct (in-place via `.numpy()` views) |
+| `jax.jit` / `jax.vmap` / `jax.grad` | No | Yes (CPU/GPU/TPU) | No (Warp-native batching instead) |
+| Rendering | Yes (`mujoco.Renderer`) | No (copy back via `mjx.get_data`) | No (copy back via `mjx.get_data`) |
+| CPU execution | Fast | Slow for mesh-contact models (~70 s/step) | N/A (CUDA only) |
+| GPU execution | No | Yes (via JAX backend) | Yes (CUDA only) |
+| Population batching | `ProcessPoolExecutor` (CPU) | Per-individual loop + JIT | Native GPU batched (`batch_size`) |
+| Import guard | `require_mujoco` | `require_mjx_jax` | `require_mjx_warp` |
+| `workers` parameter | Yes (ProcessPool) | Not applicable | Not applicable |
+| Differentiability | No | Yes | No |
+| `jit` parameter on `.run()` | N/A | `jit=False` default (eager); `jit=True` supported | N/A (no `jit` param) |
+
+## Backend selection logic
+
+- `backend="auto"`: prefer `warp` if `WarpBackend().is_available()` (CUDA GPU present), otherwise `jax`.
+- `backend="warp"` without CUDA: raises `RuntimeError` (no silent fallback).
+- `backend="jax"`: always available if `mujoco-mjx` + `jax` installed.
+
+## See also
+
+- [COLAB_GPU.md](COLAB_GPU.md) — GPU setup, validation, benchmarking
+- [MIGRATION.md](MIGRATION.md) — classic → MJX API mapping
+- [ARCHITECTURE.md](ARCHITECTURE.md) — module responsibilities and data flow
+- [SIMULATION.md](SIMULATION.md) — model structure, stepping loop, constants

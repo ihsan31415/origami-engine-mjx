@@ -7,7 +7,7 @@ This document is the complete reference for the crease input format: the `Crease
 ## The `Crease` type
 
 ```python
-from origami_engine import Crease
+from origami_engine_mjx import Crease
 
 Crease(p1=(0.2, 0.0), p2=(0.45, 0.25), angle=-0.7853981633974483)
 ```
@@ -17,20 +17,22 @@ Crease(p1=(0.2, 0.0), p2=(0.45, 0.25), angle=-0.7853981633974483)
 | `p1`, `p2` | `tuple[float, float]` | Endpoints of the crease segment, in sheet coordinates. The sheet is the unit square: `0 <= x, y <= S` with `S = 1.0`. |
 | `angle` | `float` | **Signed target fold angle in radians** (in the Python API). **Negative = mountain fold, positive = valley fold.** |
 
-`Crease` is a frozen dataclass (`origami_engine/types.py`), so instances are immutable and hashable.
+`Crease` is a frozen dataclass (`origami_engine_mjx/types.py`), so instances are immutable and hashable.
 
-The package constants `M = +π/4` and `V = −π/4` (`origami_engine/constants.py`) are the canonical ±45° angles used by the reference pattern builders (`reference_miura_legacy_creases()`, `reference_miura_render_creases()`). The sign convention that matters at runtime is the one on `Crease.angle` above (also used by `plot_pattern`: positive → Valley, blue dash-dot; negative → Mountain, crimson dashed). When the XML model is generated, the target is additionally mirrored (`sgn * angle`) depending on which side of the hinge the child face lies on, then clipped to `±MAX_FOLD` (`MAX_FOLD = 0.98π`) — see [SIMULATION.md](SIMULATION.md).
+The package constants `M = +π/4` and `V = −π/4` (`origami_engine_mjx/constants.py`) are the canonical ±45° angles used by the reference pattern builders (`reference_miura_legacy_creases()`, `reference_miura_render_creases()`). The sign convention that matters at runtime is the one on `Crease.angle` above (also used by `plot_pattern`: positive → Valley, blue dash-dot; negative → Mountain, crimson dashed). When the XML model is generated, the target is additionally mirrored (`sgn * angle`) depending on which side of the hinge the child face lies on, then clipped to `±MAX_FOLD` (`MAX_FOLD = 0.98π`) — see [SIMULATION.md](SIMULATION.md).
+
+**Note on constants naming:** The constants `M = +π/4` and `V = −π/4` have names that are swapped relative to the runtime sign convention (negative=mountain, positive=valley). `M` (Mountain) is actually a positive angle (valley), and `V` (Valley) is actually a negative angle (mountain). This is inherited verbatim from the upstream `origami-engine` codebase. **Do not change the constant values** — they are part of the public API and changing them would alter the reference pattern geometry. Use `Crease.angle` directly for the actual fold direction.
 
 ## Accepted input shapes
 
-Every public entry point (`run_simulation`, `evaluate_individual`, `evaluate_population`, `build_pattern` via `normalize_creases`, …) accepts any of:
+Every public entry point (`engine.run`, `engine.evaluate`, `evaluate_individual`, `evaluate_population`, `build_pattern` via `normalize_creases`, …) accepts any of:
 
 1. A **list of `Crease` objects**
 2. A **list of dicts** `{"p1": [x, y], "p2": [x, y], "angle": <radians>}`
 3. A **path to a JSON file** (string or `pathlib.Path`) — loaded and schema-validated by `load_creases_from_json`
 
 ```python
-from origami_engine import DEFAULT_PATTERN_JSON, Crease, normalize_creases
+from origami_engine_mjx import DEFAULT_PATTERN_JSON, Crease, normalize_creases
 
 normalize_creases([Crease((0, 0), (1, 0), 0.5)])  # Crease list
 normalize_creases([{"p1": [0, 0], "p2": [1, 0], "angle": 0.5}])  # dict list
@@ -42,7 +44,7 @@ Errors raised by `normalize_creases`: `ValueError` for `None`, empty lists, dict
 
 ## JSON file format
 
-Validated at load time against the packaged schema [`crease_pattern.schema.json`](../origami_engine/schemas/crease_pattern.schema.json) (JSON Schema draft 2020-12) using `jsonschema`. Invalid files raise `ValueError("invalid crease JSON: ...")`.
+Validated at load time against the packaged schema [`crease_pattern.schema.json`](../origami_engine_mjx/schemas/crease_pattern.schema.json) (JSON Schema draft 2020-12) using `jsonschema`. Invalid files raise `ValueError("invalid crease JSON: ...")`.
 
 Two forms are allowed (`oneOf` in the schema):
 
@@ -78,11 +80,11 @@ Each crease object requires exactly the three keys:
 | `p2` | `array` of 2 numbers | End point (sheet coordinates) |
 | `angle` | `number` | Signed target fold angle (unit per `angle_unit`; radians in bare-list form) |
 
-The schema object is also exported as `origami_engine.CREASE_SCHEMA` if you want to validate files in your own tooling before calling the library:
+The schema object is also exported as `origami_engine_mjx.CREASE_SCHEMA` if you want to validate files in your own tooling before calling the library:
 
 ```python
 import json, jsonschema
-from origami_engine import CREASE_SCHEMA
+from origami_engine_mjx import CREASE_SCHEMA
 
 payload = json.load(open("my_pattern.json"))
 jsonschema.validate(payload, CREASE_SCHEMA)  # raises jsonschema.ValidationError if invalid
@@ -91,27 +93,27 @@ jsonschema.validate(payload, CREASE_SCHEMA)  # raises jsonschema.ValidationError
 ### Saving patterns
 
 ```python
-from origami_engine import save_creases_to_json
+from origami_engine_mjx import save_creases_to_json
 
 save_creases_to_json(creases, "out.json", angle_unit="degree")  # or "radian" (default)
 ```
 
-Writes Form A with 2-space indentation, creating parent directories as needed, and returns the output `Path`. `angle_unit` must be `"radian"` or `"degree"` (else `ValueError`). Round-tripping (`save` → `load`) is covered by `tests/test_evaluation.py::test_json_loader_round_trip`.
+Writes Form A with 2-space indentation, creating parent directories as needed, and returns the output `Path`. `angle_unit` must be `"radian"` or `"degree"` (else `ValueError`). Round-tripping (`save` → `load`) is covered by `tests_mjx/test_shared.py::test_json_round_trip`.
 
 ## The reference pattern
 
-The reference pattern is a 4×4 Miura-ori: **24 creases, 16 faces, 9 loop edges**, stored with `"angle_unit": "degree"` and ±45° angles. It exists in two byte-identical copies (guarded by `tests/test_packaging.py`): the repo-root `crease_patterns/reference_miura_4x4.json` (linked from the README) and the packaged `origami_engine/crease_patterns/reference_miura_4x4.json`, which **ships in the wheel** so it is available in every install method.
+The reference pattern is a 4×4 Miura-ori: **24 creases, 16 faces, 9 loop edges**, stored with `"angle_unit": "degree"` and ±45° angles. It exists in two byte-identical copies (guarded by `tests/test_packaging.py`): the repo-root `crease_patterns/reference_miura_4x4.json` (linked from the README) and the packaged `origami_engine_mjx/crease_patterns/reference_miura_4x4.json`, which **ships in the wheel** so it is available in every install method.
 
 ```python
-from origami_engine import DEFAULT_PATTERN_JSON, load_default_creases
+from origami_engine_mjx import DEFAULT_PATTERN_JSON, load_default_creases
 
-DEFAULT_PATTERN_JSON  # -> <package>/origami_engine/crease_patterns/reference_miura_4x4.json
+DEFAULT_PATTERN_JSON  # -> <package>/origami_engine_mjx/crease_patterns/reference_miura_4x4.json
 load_default_creases()  # reads DEFAULT_PATTERN_JSON (always present in wheel + checkout)
 ```
 
 ## From creases to a validated `Pattern`
 
-`build_pattern(creases)` (in `origami_engine/geometry.py`, Shapely-based) performs:
+`build_pattern(creases)` (in `origami_engine_mjx/geometry.py`, Shapely-based) performs:
 
 1. **Noding & polygonization** — the sheet boundary `box(0,0,S,S)` and all crease segments are unioned (`unary_union`) and polygonized into faces.
 2. **Validation** — the pattern is rejected (with a reason string) when:
