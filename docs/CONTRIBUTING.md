@@ -84,7 +84,7 @@ Configured hooks (`.pre-commit-config.yaml`): `ruff --fix`, `ruff-format`, and `
 
 `.github/workflows/ci.yml` runs on push/PR to `main`:
 
-1. **lint-and-test** — matrix over Python 3.10 and 3.11: `ruff check .`, `ruff format --check .`, `mypy origami_engine_mjx --config-file pyproject.toml`, `pytest -q` (after `pip install -e ".[dev]"`; JAX/MJX tests use `pytest.importorskip`, so they are skipped when the optional backend is not installed).
+1. **lint-and-test** — matrix over Python 3.10 and 3.11: `ruff check .`, `ruff format --check .`, `mypy origami_engine_mjx --config-file pyproject.toml`, `pytest -q` (after `pip install -e ".[dev]"`; JAX/MJX tests use `pytest.importorskip` or the `requires_jax` skip guard, so they are skipped when the optional backend is not installed).
 2. **publish-to-pypi** — builds the sdist/wheel with `python -m build` and publishes via `pypa/gh-action-pypi-publish` (PyPI Trusted Publishing, OIDC).
 
 Note: The publish job only runs on pushes to `main` and requires Docker image pre-pull.

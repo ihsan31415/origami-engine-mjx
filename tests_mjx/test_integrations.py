@@ -6,8 +6,13 @@ matching the package contract.
 
 Simulation-backed tests are marked ``slow`` (MJX-JAX on CPU costs seconds per
 tiny step) and are skipped by default; run them with ``pytest -m slow``.
+
+Tests that construct a JAX-backed evaluator (even without stepping the physics)
+need the ``[jax]`` extra and are skipped with ``requires_jax`` when it is absent,
+so the suite is green on a NumPy-only install (as in CI).
 """
 
+import importlib.util
 import json
 
 import numpy as np
@@ -33,6 +38,20 @@ from origami_engine_mjx.integrations.adapters import (
     to_evosax_fitness,
     to_nevergrad_function,
     to_pymoo_problem,
+)
+
+
+def _module_available(name: str) -> bool:
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError):  # pragma: no cover - defensive
+        return False
+
+
+#: Skip guard for tests that build a JAX-backed engine (needs the ``[jax]`` extra).
+requires_jax = pytest.mark.skipif(
+    not (_module_available("jax") and _module_available("mujoco.mjx")),
+    reason="requires the [jax] extra (mujoco-mjx + jax)",
 )
 
 
@@ -151,6 +170,7 @@ class _FixedEvaluator(OrigamiEvaluator):
         return 2.0, {"displacement_x": 2.0}
 
 
+@requires_jax
 def test_evaluator_penalty_on_failure(tiny_creases):
     space = SearchSpace.from_creases(tiny_creases)
     ev = _ExplodingEvaluator(space, error_policy="penalty")
@@ -159,6 +179,7 @@ def test_evaluator_penalty_on_failure(tiny_creases):
     assert rec.fitness == pytest.approx(-1e6)
 
 
+@requires_jax
 def test_evaluator_raise_on_failure(tiny_creases):
     space = SearchSpace.from_creases(tiny_creases)
     ev = _ExplodingEvaluator(space, error_policy="raise")
@@ -166,6 +187,7 @@ def test_evaluator_raise_on_failure(tiny_creases):
         ev.evaluate(np.zeros(space.dim))
 
 
+@requires_jax
 def test_evaluator_fast_batch_penalty_on_population_failure(tiny_creases):
     """A population-level failure is converted to penalty records, not raised."""
     space = SearchSpace.from_creases(tiny_creases)
@@ -175,6 +197,7 @@ def test_evaluator_fast_batch_penalty_on_population_failure(tiny_creases):
     assert np.all(res.fitness == pytest.approx(-1e6))
 
 
+@requires_jax
 def test_evaluator_fast_batch_raise_on_population_failure(tiny_creases):
     space = SearchSpace.from_creases(tiny_creases)
     ev = OrigamiEvaluator(space, trajectory=(0.0, 0.0, 0.0), error_policy="raise")
@@ -204,6 +227,7 @@ def test_evaluator_is_picklable(tiny_creases):
     assert restored.dim == space.dim
 
 
+@requires_jax
 def test_signed_and_minimizer_helpers(tiny_creases):
     space = SearchSpace.from_creases(tiny_creases)
     ev = _FixedEvaluator(space, maximize=True)
@@ -360,6 +384,7 @@ def test_benchmark_rejects_nonpositive_n(tiny_creases):
         benchmark(ev, n=0)
 
 
+@requires_jax
 def test_benchmark_warmup_not_counted_as_cache_hit(tiny_creases):
     """The warm-up genome is kept out of the timed set even with caching on."""
     space = SearchSpace.from_creases(tiny_creases)
@@ -368,6 +393,7 @@ def test_benchmark_warmup_not_counted_as_cache_hit(tiny_creases):
     assert ev.n_cache_hits == 0
 
 
+@requires_jax
 def test_batch_result_reports_cached_and_errors(tiny_creases):
     space = SearchSpace.from_creases(tiny_creases)
     ev = _FixedEvaluator(space, use_cache=True)
