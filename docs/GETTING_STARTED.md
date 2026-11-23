@@ -57,7 +57,7 @@ pip install -e ".[dev,jax,warp]"
 
 ```bash
 python -c "import origami_engine_mjx; print(origami_engine_mjx.__version__)"
-# 0.1.0
+# 1.0.0
 
 python -c "
 from origami_engine_mjx.backends import available_backends
