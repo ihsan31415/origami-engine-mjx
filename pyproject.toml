@@ -3,15 +3,15 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "origami-engine"
-version = "1.1.0"
-description = "MuJoCo origami folding simulator"
+name = "origami-engine-mjx"
+version = "0.1.0"
+description = "Dual-backend (MJX-JAX / MJX-Warp) MuJoCo MJX origami folding simulator"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
     { name = "ihsan", email = "ihsanmuhammadkhoirul@students.unnes.ac.id" },
 ]
-keywords = ["origami", "crease-pattern", "mujoco", "folding-simulation"]
+keywords = ["origami", "crease-pattern", "mujoco", "mjx", "jax", "warp", "folding-simulation", "gpu"]
 license-files = ["LICENSE"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -28,16 +28,23 @@ classifiers = [
 dependencies = [
     "jsonschema>=4.18",
     "matplotlib>=3.7",
-    "mujoco>=2.3",
+    "mujoco>=3.0",
     "numpy>=1.24",
     "shapely>=2.0",
-    "imageio[ffmpeg]>=2.34",
 ]
 
-[project.scripts]
-origami-render = "origami_engine.render_individual:main"
-
 [project.optional-dependencies]
+jax = [
+    "mujoco-mjx>=3.0",
+    "jax>=0.4",
+]
+warp = [
+    "mujoco-warp>=3.0",
+    "warp-lang>=1.0",
+]
+render = [
+    "imageio[ffmpeg]>=2.34",
+]
 dev = [
     "pytest>=8",
     "pytest-cov>=4.0",
@@ -45,25 +52,33 @@ dev = [
     "mypy>=1.14",
     "pre-commit>=3.8",
 ]
+all = [
+    "origami-engine-mjx[jax,warp,render,dev]",
+]
+
+[project.scripts]
+origami-render-mjx = "origami_engine_mjx.render_individual:main"
 
 [tool.setuptools.packages.find]
-include = ["origami_engine*"]
+include = ["origami_engine_mjx*"]
 
 [tool.setuptools.package-data]
-origami_engine = ["schemas/*.json", "crease_patterns/*.json"]
+origami_engine_mjx = ["schemas/*.json", "crease_patterns/*.json"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests_mjx"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
-addopts = ["--cov=origami_engine", "--cov-report=term-missing", "--cov-report=xml"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
 
 [tool.ruff]
 line-length = 120
 target-version = "py310"
 
 [tool.mypy]
-files = ["origami_engine"]
+files = ["origami_engine_mjx"]
 python_version = "3.10"
 ignore_missing_imports = true
 disallow_untyped_defs = false

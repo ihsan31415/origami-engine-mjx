@@ -44,10 +44,13 @@ jobs:
 
   publish-to-pypi:
     needs: lint-and-test
+    # Only publish real releases from main — never from pull requests.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
       id-token: write
+      contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -62,6 +65,21 @@ jobs:
 
       - name: Build package
         run: python -m build
+
+      # gh-action-pypi-publish is a Docker-container action; pre-pull its image
+      # with retries so a transient ghcr.io pull failure does not fail the job
+      # with "Unable to find image ... locally".
+      - name: Pre-pull publisher image
+        run: |
+          for i in 1 2 3 4 5; do
+            if docker pull ghcr.io/pypa/gh-action-pypi-publish:release-v1; then
+              exit 0
+            fi
+            echo "pull attempt $i failed, retrying in 10s..."
+            sleep 10
+          done
+          echo "::error::could not pull ghcr.io/pypa/gh-action-pypi-publish:release-v1"
+          exit 1
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
