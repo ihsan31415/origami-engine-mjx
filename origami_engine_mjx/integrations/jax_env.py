@@ -175,24 +175,25 @@ def make_params(
         )
     # Align the genome order (sorted crease indices) with the model's actuator
     # order.  The model emits hinges in a depth-first traversal, so hinge h does
-    # not generally drive crease ``space.active_indices[h]``.
+    # not generally drive crease ``space.active_indices[h]``.  We require the
+    # hinge→crease map rather than assuming identity, since assuming identity
+    # silently sends each action to the wrong hinge.
     hinge_creases = info.get("hinge_creases")
     if hinge_creases is None:
-        ctrl_perm = np.arange(hinge_adr.size, dtype=np.int32)
-    else:
-        crease_to_j = {int(c): j for j, c in enumerate(space.active_indices)}
-        if {int(c) for c in hinge_creases} != set(crease_to_j):
-            raise ValueError(
-                "model hinges do not match the search space's active creases; "
-                "build the space with active_only=True over the same pattern"
-            )
-        # ctrl_perm[h] = genome index whose angle drives model hinge h.
-        ctrl_perm = np.asarray([crease_to_j[int(c)] for c in hinge_creases], dtype=np.int32)
-        # Reorder hinge addresses to genome order: hinge_adr[j] is the qpos of
-        # the hinge driven by genome entry j.
-        space_to_model_h = np.empty(hinge_adr.size, dtype=np.int32)
-        space_to_model_h[ctrl_perm] = np.arange(hinge_adr.size, dtype=np.int32)
-        hinge_adr = hinge_adr[space_to_model_h]
+        raise ValueError("info is missing 'hinge_creases'; pass the dict returned by build_jax_model()")
+    crease_to_j = {int(c): j for j, c in enumerate(space.active_indices)}
+    if {int(c) for c in hinge_creases} != set(crease_to_j):
+        raise ValueError(
+            "model hinges do not match the search space's active creases; "
+            "build the space with active_only=True over the same pattern"
+        )
+    # ctrl_perm[h] = genome index whose angle drives model hinge h.
+    ctrl_perm = np.asarray([crease_to_j[int(c)] for c in hinge_creases], dtype=np.int32)
+    # Reorder hinge addresses to genome order: hinge_adr[j] is the qpos of
+    # the hinge driven by genome entry j.
+    space_to_model_h = np.empty(hinge_adr.size, dtype=np.int32)
+    space_to_model_h[ctrl_perm] = np.arange(hinge_adr.size, dtype=np.int32)
+    hinge_adr = hinge_adr[space_to_model_h]
     table_id = int(classic_model.body("table").id)
     geom_bodyid = np.asarray(classic_model.geom_bodyid)
     paper_mask = geom_bodyid != table_id

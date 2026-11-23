@@ -4,8 +4,9 @@ from __future__ import annotations
 
 Small, dependency-light utilities that every optimization/RL pipeline needs but
 that are not interesting on their own: reproducible seeding, genome
-save/load in the existing JSON crease format, a best-so-far checkpoint, an
-append-only run logger (JSONL/CSV) and a throughput benchmark.
+save/load in the existing JSON crease format, a best-so-far checkpoint, a run
+logger (JSONL/CSV; records are appended, and the file is truncated when first
+opened) and a throughput benchmark.
 """
 
 import csv

@@ -94,6 +94,14 @@ def test_make_params_rejects_mismatched_space(tiny_space):
         make_params(space, classic, info)
 
 
+def test_make_params_requires_hinge_crease_map(tiny_space):
+    """``info`` without the hinge→crease map is rejected, not assumed identity."""
+    _, classic, info = build_jax_model(tiny_space.decode(np.zeros(tiny_space.dim)))
+    info.pop("hinge_creases")
+    with pytest.raises(ValueError):
+        make_params(tiny_space, classic, info)
+
+
 @pytest.mark.slow
 def test_step_ctrl_uses_search_space_order():
     """End-to-end: the control sent to the model is permuted into genome order.
