@@ -36,6 +36,7 @@ SimulationResult(initial_centroid, final_centroid, ...) → fitness = projection
 | `model.py` | `generate_xml()` — builds MJCF XML string from `Pattern`; no MuJoCo runtime needed | No |
 | `engine.py` | `OrigamiEngine` facade with `.run()`, `.evaluate()`, `.evaluate_population()` | No (delegates to backend) |
 | `evaluation.py` | `evaluate_individual()`, `evaluate_population()` — top-level convenience functions | No |
+| `integrations/` | ES/RL/AI **interfaces** (no algorithms): `SearchSpace`, `OrigamiEvaluator`, optimizer adapters, Gymnasium `OrigamiEnv`/`OrigamiVectorEnv`, pure-JAX `reset`/`step`, plumbing | No (thin layer over `OrigamiEngine`; JAX-optional) |
 | `backend.py` | Lazy import guards for `mujoco`, `mjx_jax`, `mjx_warp`; raises clear errors | No (metadata only) |
 | `backends/base.py` | `SimulationBackend` ABC: `build_model()`, `make_state()`, `run()`, `run_batch()` | Interfaces only |
 | `backends/jax_backend.py` | MJX-JAX: `mjx.put_model`, `mjx.make_data`, `mjx.step` (eager by default); `jit` optional | **Yes** |
