@@ -17,4 +17,4 @@ repos:
           - shapely>=2.0
           - imageio>=2.34
         args: [--config-file=pyproject.toml]
-        files: ^origami_engine/
+        files: ^origami_engine(_mjx)?/

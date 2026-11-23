@@ -38,8 +38,8 @@ format: ## Apply ruff formatting
 	$(PY) -m ruff format .
 	$(PY) -m ruff check --fix .
 
-typecheck: ## Run mypy on the package
-	$(PY) -m mypy origami_engine
+typecheck: ## Run mypy on the MJX package
+	$(PY) -m mypy origami_engine_mjx --config-file pyproject.toml
 
 clean: ## Remove generated artifacts and caches
 	rm -f render_report.json render_report.md individual_simulation.mp4
