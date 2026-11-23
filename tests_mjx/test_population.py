@@ -68,6 +68,15 @@ def test_jitter_clips_to_bounds(space):
     assert np.all(jittered <= space.upper + 1e-12)
 
 
+def test_jitter_normalized_requires_space(space):
+    with pytest.raises(ValueError):
+        jitter(space.sample(0, size=2), sigma=0.1, space=None, rng=0, normalized=True)
+    # With a space the normalized path is fine and stays in bounds.
+    jittered = jitter(space.sample(0, size=2), sigma=0.1, space=space, rng=0, normalized=True)
+    assert np.all(jittered <= space.upper + 1e-12)
+    assert np.all(jittered >= space.lower - 1e-12)
+
+
 def test_search_space_is_accepted(space):
     """The helpers duck-type SearchSpace too."""
     ss = SearchSpace.from_default_pattern()
@@ -99,6 +108,16 @@ def test_piecewise_and_barycentric(space):
     assert piecewise_path(seeds, 10, rng=0).shape == (10, space.dim)
     assert piecewise_path(seeds, 10, rng=0, closed=True).shape == (10, space.dim)
     assert random_barycentric(seeds, 10, rng=0).shape == (10, space.dim)
+
+
+def test_piecewise_closed_stays_within_seed_hull():
+    # A closed path visits the wrap-around segment (last -> first) but must not
+    # extrapolate past the final vertex. Regression: the parameter bound used to
+    # be ``m`` instead of ``m - 1``, overshooting by one full segment.
+    seeds = np.array([[0.0], [1.0], [2.0]])
+    out = piecewise_path(seeds, 5000, rng=0, closed=True)
+    assert out.min() >= 0.0
+    assert out.max() <= 2.0
 
 
 def test_piecewise_needs_two_seeds(space):

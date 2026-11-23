@@ -217,8 +217,10 @@ def piecewise_path(seeds: np.ndarray, n: int, rng=None, closed: bool = False) ->
         raise ValueError("n must be non-negative")
     pts = np.vstack([S, S[:1]]) if closed else S
     m = pts.shape[0]
-    # Random parameter in [0, m-1] (or [0, m) when closed).
-    hi = float(m) if closed else float(m - 1)
+    # ``pts`` has ``m`` vertices and therefore ``m - 1`` segments; sample the
+    # path parameter in ``[0, m - 1]`` so a closed path never extrapolates past
+    # the final vertex back into the (non-existent) segment ``m - 1 -> m``.
+    hi = float(m - 1)
     u = g.uniform(0.0, hi, size=n)
     seg = np.clip(np.floor(u).astype(int), 0, m - 2)
     frac = u - seg
@@ -253,10 +255,13 @@ def jitter(genomes, sigma: float = 0.05, space: Space | None = None, rng=None, n
 
     ``sigma`` is in units of the space span when ``normalized=True`` (noise is
     added in the ``[-1, 1]`` view), otherwise in raw genome units.  When
-    ``space`` is given the result is clipped back into bounds.
+    ``space`` is given the result is clipped back into bounds.  ``normalized=True``
+    without a ``space`` raises, since the normalized view is undefined.
     """
     X = np.atleast_2d(np.asarray(genomes, dtype=float))
     g = _as_rng(rng)
+    if normalized and space is None:
+        raise ValueError("jitter(normalized=True) needs a space to define the normalized [-1, 1] view")
     if normalized and space is not None:
         Z = np.vstack([space.to_normalized(row) for row in X])
         Z = Z + g.normal(0.0, float(sigma), size=Z.shape)
