@@ -214,6 +214,9 @@ examples/*.png
 # PyPI configuration file
 .pypirc
 
+# Personal scratch notebooks / reference material (never committed)
+notebook_examples/context-only/
+
 # Marimo
 marimo/_static/
 marimo/_lsp/
