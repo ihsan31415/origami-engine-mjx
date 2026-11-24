@@ -10,6 +10,7 @@ import sys
 import types
 from unittest import mock
 
+import numpy as np
 import pytest
 
 import origami_engine_mjx.backend as backend_module
@@ -162,3 +163,131 @@ def test_warp_backend_is_unavailable_without_mujoco_warp(install_fakes):
     backend = wb.WarpBackend()
     assert backend.is_available() is False
     assert backend.device_info() == "mujoco-warp not installed"
+
+
+# ---------------------------------------------------------------------------
+# Strict ``wp.array`` stubs
+#
+# Newer ``warp-lang`` raises RuntimeError("Item indexing is not supported on
+# wp.array objects") when a device array is passed to np.asarray() or indexed
+# directly, so every read/write must go through ``.numpy()`` / ``.assign()``.
+# ---------------------------------------------------------------------------
+
+
+class StrictWpArray:
+    """``wp.array`` stand-in that rejects NumPy/sequence access."""
+
+    _ERROR = "Item indexing is not supported on wp.array objects"
+
+    def __init__(self, data):
+        self._data = np.array(data, dtype=float)
+        self.numpy_calls = 0
+
+    def numpy(self):
+        self.numpy_calls += 1
+        return self._data.copy()
+
+    def assign(self, values):
+        self._data = np.array(values, dtype=float)
+
+    def __getitem__(self, key):
+        raise RuntimeError(self._ERROR)
+
+    def __setitem__(self, key, values):
+        raise RuntimeError(self._ERROR)
+
+    def __array__(self, *args, **kwargs):
+        raise RuntimeError(self._ERROR)
+
+    def __iter__(self):
+        raise RuntimeError(self._ERROR)
+
+
+class StrictWpData:
+    """Minimal ``mujoco_warp`` data stub whose fields are all strict arrays."""
+
+    def __init__(self, mjm):
+        self.qpos = StrictWpArray(np.zeros((1, mjm.nq)))
+        self.qvel = StrictWpArray(np.zeros((1, mjm.nv)))
+        self.ctrl = StrictWpArray(np.zeros((1, mjm.nu)))
+        self.geom_xpos = StrictWpArray(np.full((1, mjm.ngeom, 3), 0.25))
+
+
+class StrictWpModel:
+    def __init__(self, mjm):
+        self.geom_bodyid = StrictWpArray(mjm.geom_bodyid)
+
+
+def _strict_step(model, data):
+    data.qpos.assign(data.qpos._data + 0.001)
+
+
+@pytest.fixture
+def strict_warp(monkeypatch):
+    """Run ``WarpBackend`` against strict ``wp.array`` stubs (no GPU)."""
+    fake = _fake_mujoco_warp()
+    fake.put_model = mock.Mock(name="put_model", side_effect=StrictWpModel)
+    fake.make_data = mock.Mock(name="make_data", side_effect=StrictWpData)
+    fake.step = mock.Mock(name="step", side_effect=_strict_step)
+    monkeypatch.setitem(sys.modules, "mujoco_warp", fake)
+    monkeypatch.setitem(sys.modules, "mujoco.warp", None)
+    monkeypatch.setitem(sys.modules, "warp", _fake_warp(is_cuda=True))
+    wb = importlib.reload(warp_backend)
+    return wb, fake
+
+
+@pytest.fixture
+def tiny_creases():
+    from origami_engine_mjx import Crease
+
+    return [
+        Crease((0.2, 0.0), (0.5, 0.5), -0.7853981633974483),
+        Crease((0.5, 0.5), (0.8, 0.0), -0.7853981633974483),
+    ]
+
+
+def test_to_numpy_uses_warp_numpy():
+    arr = StrictWpArray(np.arange(6).reshape(2, 3))
+    out = warp_backend._to_numpy(arr)
+    assert np.array_equal(out, np.arange(6).reshape(2, 3))
+    assert arr.numpy_calls == 1
+
+
+def test_to_numpy_falls_back_to_asarray():
+    assert np.array_equal(warp_backend._to_numpy([1, 2, 3]), np.array([1, 2, 3]))
+
+
+def test_set_item_assigns_into_warp_array():
+    arr = StrictWpArray(np.zeros((1, 4)))
+    warp_backend._set_item(arr, (0, 1), 7.0)
+    assert arr._data[0, 1] == 7.0
+    warp_backend._set_item(arr, (0, slice(0, 2)), np.array([1.0, 2.0]))
+    assert np.array_equal(arr._data[0, :2], [1.0, 2.0])
+
+
+def test_run_accepts_strict_warp_arrays(strict_warp, tiny_creases):
+    wb, _ = strict_warp
+    result = wb.WarpBackend().run(tiny_creases, duration=0.005, fold_duration=0.002, vibrate=True, record=True)
+
+    assert result.backend == "warp"
+    assert np.isfinite(result.final_centroid).all()
+    # Table geoms are excluded: the stub places every paper geom at (0.25, 0.25).
+    assert np.allclose(result.initial_centroid, [0.25, 0.25])
+    traj = result.extra["trajectory"]
+    assert traj["qpos"].shape[1] == result.data.qpos._data.shape[1]
+    assert traj["centroid"].shape[1] == 2
+
+
+def test_run_without_vibration_reads_strict_arrays(strict_warp, tiny_creases):
+    wb, _ = strict_warp
+    result = wb.WarpBackend().run(tiny_creases, duration=0.003, fold_duration=0.002, vibrate=False)
+    assert np.isfinite(result.info["hinge_qpos"]).all()
+
+
+def test_run_batch_with_strict_arrays(strict_warp, tiny_creases):
+    wb, _ = strict_warp
+    scores = wb.WarpBackend().run_batch(
+        [tiny_creases, tiny_creases], duration=0.003, fold_duration=0.002, vibrate=False
+    )
+    assert scores.shape == (2,)
+    assert np.isfinite(scores).all()
