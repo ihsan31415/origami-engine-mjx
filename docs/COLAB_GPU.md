@@ -20,7 +20,7 @@ Run `examples/colab_gpu_validation.py`, which prints (and checks):
 
 1. `available_backends()`, `WarpBackend().is_available()` must be `True`, and `device_info()`.
 2. `jax.devices()` / `jax.default_backend()` — confirms JAX sees the GPU.
-3. MJX-Warp model conversion (`mjw.make_model`) plus a short `mjw.step` run; `final_centroid` must be finite.
+3. MJX-Warp model conversion (`mjw.put_model`) plus a short `mjw.step` run; `final_centroid` must be finite.
 4. The same run on MJX-JAX/GPU for a numerical comparison.
 5. Population throughput at sizes 32 / 128 / 256 with `evaluate_population` (one warm-up run, then timed), including a `batch_size`-ignored note: both backends currently loop per individual.
 6. GPU memory — `jax.devices()[0].memory_stats()` and `nvidia-smi --query-gpu=memory.used,memory.total`.

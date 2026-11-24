@@ -14,7 +14,7 @@
 
 ## MJX-Warp (`backend="warp"`)
 
-- **Engine**: `mujoco.warp` running on NVIDIA Warp (CUDA kernels).
+- **Engine**: `mujoco_warp` running on NVIDIA Warp (CUDA kernels).
 - **Hardware**: NVIDIA CUDA GPU only. Not usable on CPU or Intel graphics.
 - **Transformations**: Warp state is **not** a JAX pytree — do not apply `jax.vmap`/`jax.jit` to Warp state.
 - **Batching**: **not implemented yet.** `run_batch` loops over individuals and calls `run` in Python; `batch_size` is accepted but ignored. Native batched Warp execution (`mjw.step` over batched state) remains a Colab-GPU integration target.

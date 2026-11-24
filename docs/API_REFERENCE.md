@@ -218,7 +218,7 @@ Tolerance-normalised hinge-target score. `score` is in `[0, 1]` (`0..100` with
 returns `mean_abs_error_deg`, `max_abs_error_deg`, `rms_error_deg`, `n_hinges`
 and `per_hinge_error_deg`. See [FITNESS.md](FITNESS.md).
 
-The resulting XML is accepted by classic `mujoco.MjModel.from_xml_string`, MJX-JAX `mjx.put_model`, or MJX-Warp `mjw.make_model`. See [SIMULATION.md](SIMULATION.md).
+The resulting XML is accepted by classic `mujoco.MjModel.from_xml_string`, MJX-JAX `mjx.put_model`, or MJX-Warp `mjw.put_model`. See [SIMULATION.md](SIMULATION.md).
 
 ## `origami_engine_mjx.serialization` — shared
 
@@ -293,11 +293,11 @@ Module-level optional imports plus helpers. Nothing here is backend-specific log
 |---|---|---|
 | `mujoco` | module or `None` | Classic MuJoCo if import succeeded. |
 | `mjx_jax` | module or `None` | `mujoco.mjx` if `jax` + `mujoco-mjx` imported. |
-| `mjx_warp` | module or `None` | `mujoco.warp` if installed. |
+| `mjx_warp` | module or `None` | `mujoco_warp` if installed (falls back to the legacy `mujoco.warp` of `mujoco-warp` 3.x). |
 | `MUJOCO_IMPORT_ERROR` / `MJX_JAX_IMPORT_ERROR` / `MJX_WARP_IMPORT_ERROR` | `BaseException | None` | Captured import failure for each optional dependency. |
 | `require_mujoco(message="MuJoCo is required for this operation.")` | `mujoco` | Return the module or raise `RuntimeError(message)` chained from the import error. |
 | `require_mjx_jax(message="MJX-JAX backend requires 'mujoco-mjx' and 'jax'.")` | `mujoco.mjx` | Return the module or raise `RuntimeError` with install hint `pip install 'origami-engine-mjx[jax]'`. |
-| `require_mjx_warp(message="MJX-Warp backend requires 'mujoco-warp' and an NVIDIA GPU.")` | `mujoco.warp` | Return the module or raise `RuntimeError` with install hint `pip install 'origami-engine-mjx[warp]'`. |
+| `require_mjx_warp(message="MJX-Warp backend requires 'mujoco-warp' and an NVIDIA GPU.")` | `mujoco_warp` | Return the module or raise `RuntimeError` with install hint `pip install 'origami-engine-mjx[warp]'`. |
 
 Note: `origami_engine_mjx/backends/__init__.py` imports the two backend modules when the registry is built. Those imports are failure-guarded (errors are stored, not raised), so the import itself never fails when JAX/Warp are absent.
 
@@ -474,15 +474,15 @@ Built-ins are registered at import time as `"jax"` → `JaxBackend` and `"warp"`
 
 ### `WarpBackend` (`origami_engine_mjx.backends.warp_backend`)
 
-`name = "warp"`; available only when `mujoco.warp` imports **and** `warp.get_device().is_cuda` is true. All Warp imports are failure-guarded; importing the module does not initialise CUDA.
+`name = "warp"`; available only when `mujoco_warp` imports **and** `warp.get_device().is_cuda` is true. All Warp imports are failure-guarded; importing the module does not initialise CUDA.
 
 | Method | Behavior |
 |---|---|
-| `build_model(xml, info)` | `MjModel.from_xml_string(xml)` → `mjw.make_model(...)`; returns `{"warp_model", "classic_model", "info"}`. |
-| `make_state(bundle)` | `mjw.make_data(bundle["warp_model"])`. |
+| `build_model(xml, info)` | `MjModel.from_xml_string(xml)` → `mjw.put_model(...)` (`mjw.make_model` on `mujoco-warp` 3.x); returns `{"warp_model", "classic_model", "info"}`. |
+| `make_state(bundle)` | `mjw.make_data(bundle["classic_model"])` — `mujoco-warp` 4.x takes the host `mujoco.MjModel` (3.x took the Warp model). |
 | `run(..., coll_thick=None, actuated=None, actuation_schedule=None)` | Same normalization/validation as JAX, then a Python loop over `round(duration / 0.001)` `mjw.step` calls with NumPy control writes. No `jit` parameter. Non-driven hinges get a control equal to their current angle. |
 | `run_batch(..., batch_size=None)` | Sequential per-individual loop calling `run(...)`, scoring `delta[0]`; exceptions become `nan`. **Ignores `batch_size`**; native batched Warp execution is not implemented. |
-| `is_available()` | `False` when `mujoco`/`mujoco.warp` are missing or no CUDA device is present (`warp.get_device().is_cuda`). |
+| `is_available()` | `False` when `mujoco`/`mujoco_warp` are missing or no CUDA device is present (`warp.get_device().is_cuda`). |
 | `device_info()` | `"mujoco-warp not installed"`, `"warp device=<dev>, cuda=<bool>"`, or a diagnostic error string. |
 
 See [BACKENDS.md](BACKENDS.md) for the semantics comparison and [COLAB_GPU.md](COLAB_GPU.md) for GPU validation steps.

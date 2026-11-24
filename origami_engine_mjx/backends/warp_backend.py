@@ -8,8 +8,13 @@ GPU.  This backend **requires an NVIDIA CUDA GPU** and the ``mujoco-warp`` +
 native batched Warp execution is not implemented yet.
 
 All Warp imports are lazy — importing this module does not initialise CUDA.
+
+``mujoco-warp`` 3.x shipped as ``mujoco.warp`` inside MuJoCo, while 4.x is the
+standalone ``mujoco_warp`` package, so :func:`_import_mjwarp` tries the
+standalone module first and falls back to the legacy import.
 """
 
+import importlib
 from typing import Any
 
 import numpy as np
@@ -24,10 +29,31 @@ from .base import SimulationBackend
 # Lazy imports.
 _IMPORT_ERROR: BaseException | None = None
 
+
+def _import_mjwarp():
+    """Return the MuJoCo Warp module, preferring the standalone package.
+
+    ``mujoco-warp`` >= 4.0 installs as ``mujoco_warp``; older releases shipped
+    inside MuJoCo as ``mujoco.warp``.
+    """
+    try:
+        import mujoco_warp
+
+        return mujoco_warp
+    except ImportError:  # fall back to the legacy location
+        pass
+    try:
+        # importlib because ``import mujoco.warp`` binds the parent ``mujoco``.
+        return importlib.import_module("mujoco.warp")
+    except ImportError as exc:  # neither location is installed
+        raise ImportError("neither 'mujoco_warp' nor 'mujoco.warp' is importable") from exc
+
+
 try:
     import mujoco
-    import mujoco.warp as mjw
     from mujoco import MjModel
+
+    mjw = _import_mjwarp()
 except Exception as exc:  # noqa: BLE001
     mujoco = None  # type: ignore[assignment]
     mjw = None  # type: ignore[assignment]
@@ -76,12 +102,25 @@ class WarpBackend(SimulationBackend):
                 "MJX-Warp backend requires 'mujoco-warp' and 'warp-lang' plus an NVIDIA GPU. "
                 "Install with: pip install 'origami-engine-mjx[warp]'"
             ) from _IMPORT_ERROR
+        # ``mujoco-warp`` >= 4.0 names the device-model constructor ``put_model``;
+        # 3.x (``mujoco.warp``) called it ``make_model``.
+        put_model = getattr(mjw, "put_model", None) or getattr(mjw, "make_model", None)
+        if put_model is None:
+            raise RuntimeError(
+                "installed mujoco-warp exposes neither 'put_model' nor 'make_model'; "
+                "install mujoco-warp>=4.0 and warp-lang>=1.15"
+            ) from _IMPORT_ERROR
         classic = MjModel.from_xml_string(xml)
-        warp_model = mjw.make_model(classic)
+        warp_model = put_model(classic)
         return {"warp_model": warp_model, "classic_model": classic, "info": info}
 
     def make_state(self, model_bundle: dict[str, Any]) -> Any:
-        return mjw.make_data(model_bundle["warp_model"])
+        # ``mjw.make_data`` takes the *host* ``mujoco.MjModel`` in 4.0 (3.x took
+        # the Warp model), so it is given the classic model kept in the bundle.
+        classic = model_bundle.get("classic_model")
+        if classic is None:
+            return mjw.make_data(model_bundle["warp_model"])
+        return mjw.make_data(classic)
 
     # ------------------------------------------------------------------
     # Single simulation
@@ -124,6 +163,10 @@ class WarpBackend(SimulationBackend):
         warp_model = bundle["warp_model"]
         classic = bundle["classic_model"]
 
+        # ``mujoco-warp`` 4.x arrays are (nworld, ...); this backend simulates
+        # one world, so every device array is indexed at world 0.
+        world = bundle.get("world")
+        idx = (0,) if world is None else (world,)
         data = self.make_state(bundle)
 
         hinge_adr = np.array([classic.joint(h["name"]).qposadr[0] for h in info["hinges"]], dtype=int)
@@ -145,12 +188,17 @@ class WarpBackend(SimulationBackend):
 
         # Zero hinge qpos.
         if len(hinge_adr):
-            data.qpos.numpy()[hinge_adr] = 0.0
+            data.qpos.numpy()[idx + (hinge_adr,)] = 0.0
 
         table_id = int(classic.body("table").id)
-        geom_bodyid = np.asarray(warp_model.geom_bodyid)
+        geom_bodyid = getattr(warp_model, "geom_bodyid", None)
+        if geom_bodyid is None:
+            # Fall back to the host model (device array copied to the CPU by ``np.asarray``).
+            geom_bodyid = np.asarray(classic.geom_bodyid)
+        else:
+            geom_bodyid = np.asarray(geom_bodyid)
         paper_mask = geom_bodyid != table_id
-        initial_centroid = self._centroid_from_data(data, paper_mask)
+        initial_centroid = self._centroid_from_data(data, paper_mask, world)
 
         timestep = float(classic.opt.timestep)
         n_steps = round(duration / timestep)
@@ -163,9 +211,9 @@ class WarpBackend(SimulationBackend):
 
         def capture(t: float) -> None:
             times.append(float(t))
-            qpos_hist.append(np.array(data.qpos.numpy(), copy=True))
-            qvel_hist.append(np.array(data.qvel.numpy(), copy=True))
-            centroid_hist.append(self._centroid_from_data(data, paper_mask))
+            qpos_hist.append(np.array(data.qpos.numpy()[idx], copy=True))
+            qvel_hist.append(np.array(data.qvel.numpy()[idx], copy=True))
+            centroid_hist.append(self._centroid_from_data(data, paper_mask, world))
             if not schedule_static:
                 mask_hist.append(current_mask.copy())
 
@@ -181,23 +229,23 @@ class WarpBackend(SimulationBackend):
             active = current_mask[model_mask]
             if actuator_hinges.size:
                 drive = s * targets[actuator_hinges]
-                neutral = data.qpos.numpy()[actuator_adr]
-                data.ctrl.numpy()[:] = np.where(active, drive, neutral)
+                neutral = data.qpos.numpy()[idx + (actuator_adr,)]
+                data.ctrl.numpy()[idx] = np.where(active, drive, neutral)
             if vibrate:
                 w = 2.0 * np.pi * freq_hz
-                data.qpos.numpy()[table_x_qadr] = amp_x * np.sin(w * t)
-                data.qvel.numpy()[table_x_dadr] = amp_x * w * np.cos(w * t)
-                data.qpos.numpy()[table_z_qadr] = amp_z * np.sin(w * t)
-                data.qvel.numpy()[table_z_dadr] = amp_z * w * np.cos(w * t)
+                data.qpos.numpy()[idx + (table_x_qadr,)] = amp_x * np.sin(w * t)
+                data.qvel.numpy()[idx + (table_x_dadr,)] = amp_x * w * np.cos(w * t)
+                data.qpos.numpy()[idx + (table_z_qadr,)] = amp_z * np.sin(w * t)
+                data.qvel.numpy()[idx + (table_z_dadr,)] = amp_z * w * np.cos(w * t)
             mjw.step(warp_model, data)
             if record and ((step_i + 1) % record_every == 0 or step_i + 1 == n_steps):
                 capture((step_i + 1) * timestep)
 
-        final_qpos = data.qpos.numpy()
+        final_qpos = data.qpos.numpy()[idx]
         if not np.isfinite(final_qpos).all():
             raise FloatingPointError("unstable simulation: non-finite joint coordinates produced.")
 
-        final_centroid = self._centroid_from_data(data, paper_mask)
+        final_centroid = self._centroid_from_data(data, paper_mask, world)
         info["actuated"] = current_mask
         info["hinge_qpos"] = final_qpos[hinge_adr] if len(hinge_adr) else np.zeros(0, dtype=float)
 
@@ -276,9 +324,12 @@ class WarpBackend(SimulationBackend):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _centroid_from_data(data, paper_mask: np.ndarray) -> np.ndarray:
+    def _centroid_from_data(data, paper_mask: np.ndarray, world: int | None = None) -> np.ndarray:
         xpos = data.geom_xpos.numpy()
-        pts = xpos[paper_mask, :2]
+        if world is not None:
+            # ``mujoco-warp`` 4.x arrays are (nworld, ngeom, 3); index our world.
+            xpos = xpos[world]
+        pts = np.asarray(xpos)[paper_mask, :2]
         return pts.mean(axis=0)
 
 

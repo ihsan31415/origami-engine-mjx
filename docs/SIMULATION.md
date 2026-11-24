@@ -15,7 +15,7 @@ build_pattern(creases) → Pattern               (geometry.py — Shapely face g
    ▼
 backend.build_model(xml, info)                  (backends/* — MJX / Warp model conversion)
    │    jax: MjModel.from_xml_string → mjx.put_model → mjx.make_data
-   │    warp: MjModel.from_xml_string → mjw.make_model → mjw.make_data
+   │    warp: MjModel.from_xml_string → mjw.put_model → mjw.make_data
    ▼
 backend.run(...) — step loop                    (actuator ramp + table vibration + mjx.step/mjw.step)
    ▼
