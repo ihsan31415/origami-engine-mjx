@@ -113,11 +113,12 @@ def with_letterbox(frame: Any, size: tuple[int, int], background: int = 0) -> np
     scale = min(w / arr.shape[1], h / arr.shape[0])
     new_w = max(1, round(arr.shape[1] * scale))
     new_h = max(1, round(arr.shape[0] * scale))
-    img = (
+    resized: Any = (
         Image.fromarray(arr).resize((new_w, new_h), _LANCZOS)
         if Image is not None
         else _resize_lanczos(arr, (new_w, new_h))
     )
+    img = _as_uint8(resized)
     out = np.full((h, w, 3), background, dtype=np.uint8)
     y0 = (h - new_h) // 2
     x0 = (w - new_w) // 2
