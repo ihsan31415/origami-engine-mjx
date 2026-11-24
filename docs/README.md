@@ -60,6 +60,10 @@ these docs:
 | [`07_populations.py`](../examples/07_populations.py) | [POPULATIONS.md](POPULATIONS.md) |
 | [`colab_gpu_validation.py`](../examples/colab_gpu_validation.py) | [COLAB_GPU.md](COLAB_GPU.md) |
 
+Colab-ready notebooks that drive external optimizers, RL trainers and LLM
+proposers live in [`notebook_examples/`](../notebook_examples/README.md),
+including a single generic driver for every `evosax` strategy.
+
 ## See also
 
 - [README.md](../README.md) — project overview and quick start

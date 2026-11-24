@@ -178,6 +178,7 @@ For in-depth information, see the dedicated documentation files:
 - **[SEARCH_SPACE.md](docs/SEARCH_SPACE.md)** — the configurable `DesignSpace` (angles, geometry, crease count)
 - **[POPULATIONS.md](docs/POPULATIONS.md)** — population seeding / initialization
 - **[RL.md](docs/RL.md)** — Gymnasium and JAX-functional reinforcement-learning environments
+- **[notebook_examples/](notebook_examples/README.md)** — Colab-ready notebooks for external optimizers, RL and LLM agents
 - `examples/` — runnable scripts (see the table below)
 
 *All documentation lives in [`docs/`](docs).*

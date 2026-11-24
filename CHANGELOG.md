@@ -40,11 +40,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation `docs/SEARCH_SPACE.md` and `docs/POPULATIONS.md`; examples
   `examples/06_design_space.py` and `examples/07_populations.py`; tests
   `tests_mjx/test_design_space.py` and `tests_mjx/test_population.py`.
+- `notebook_examples/` — Colab-ready, self-contained integration notebooks:
+  black-box optimizers (`nevergrad` / CMA-ES / `pymoo`), a single generic driver
+  for every `evosax` strategy, Gymnasium + pure-JAX RL, and an AI/LLM agent
+  loop, plus an index README with CPU/GPU cost guidance. The notebooks consume
+  the library; they add no algorithms to it.
+- `prompts/origami-optimizer-integration.md` — a reusable, algorithm-agnostic
+  integration recipe (space selection, evaluator direction, adapters, seeding,
+  logging, checkpoints and a verification checklist).
 
 ### Changed
 - `OrigamiEnv` / `OrigamiVectorEnv` accept a `SearchSpace` **or** an angle-only,
   unconstrained `DesignSpace`; a geometry/presence/constrained design space is
   rejected with a clear error (RL needs one shared, fixed topology).
+- Corrected the documented `evosax` direction: it **minimizes**
+  `state.best_fitness`, so `to_evosax_fitness` output must be negated before
+  `tell` (`docs/OPTIMIZATION_ES.md` and the adapter docstring).
 
 ## [1.0.0] - 2026-11-24
 
