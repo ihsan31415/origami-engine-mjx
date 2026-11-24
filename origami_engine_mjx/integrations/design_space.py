@@ -693,9 +693,9 @@ class DesignSpace:
         z = np.asarray(normalized, dtype=float).reshape(-1)
         if z.size != self.dim:
             raise ValueError(f"normalized genome has length {z.size}, expected {self.dim}")
-        z = np.clip(z, -1.0, 1.0)
+        clipped = np.clip(z, -1.0, 1.0)
         span = self.upper - self.lower
-        return self.lower + (z + 1.0) * 0.5 * span
+        return self.lower + (clipped + 1.0) * 0.5 * span
 
     # ------------------------------------------------------------------
     # Sampling
