@@ -1,6 +1,6 @@
 # Examples
 
-> **Documentation map:** [README](../README.md) · [GETTING_STARTED.md](../docs/GETTING_STARTED.md) · [TUTORIALS.md](../docs/TUTORIALS.md) · [API_REFERENCE.md](../docs/API_REFERENCE.md) · [EVALUATION.md](../docs/EVALUATION.md) · [CREASE_FORMAT.md](../docs/CREASE_FORMAT.md) · [SIMULATION.md](../docs/SIMULATION.md) · [TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md) · [GLOSSARY.md](../docs/GLOSSARY.md) · [INTEGRATIONS.md](../docs/INTEGRATIONS.md) · [OPTIMIZATION_ES.md](../docs/OPTIMIZATION_ES.md) · [SEARCH_SPACE.md](../docs/SEARCH_SPACE.md) · [POPULATIONS.md](../docs/POPULATIONS.md) · [RL.md](../docs/RL.md) · [CONTRIBUTING.md](../docs/CONTRIBUTING.md)
+> **Documentation map:** [README](../README.md) · [GETTING_STARTED.md](../docs/GETTING_STARTED.md) · [TUTORIALS.md](../docs/TUTORIALS.md) · [API_REFERENCE.md](../docs/API_REFERENCE.md) · [EVALUATION.md](../docs/EVALUATION.md) · [FITNESS.md](../docs/FITNESS.md) · [CREASE_FORMAT.md](../docs/CREASE_FORMAT.md) · [SIMULATION.md](../docs/SIMULATION.md) · [TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md) · [GLOSSARY.md](../docs/GLOSSARY.md) · [INTEGRATIONS.md](../docs/INTEGRATIONS.md) · [OPTIMIZATION_ES.md](../docs/OPTIMIZATION_ES.md) · [SEARCH_SPACE.md](../docs/SEARCH_SPACE.md) · [POPULATIONS.md](../docs/POPULATIONS.md) · [RL.md](../docs/RL.md) · [CONTRIBUTING.md](../docs/CONTRIBUTING.md)
 
 Runnable scripts showing how to use the `origami_engine_mjx` library. Each script inserts the repository root onto `sys.path`, so they run directly from a source checkout (with the package installed editable, `pip install -e ".[dev]"` — see [GETTING_STARTED.md](../docs/GETTING_STARTED.md), Method 3):
 
@@ -24,6 +24,7 @@ make examples
 | [`05_rl_env.py`](05_rl_env.py) | Gymnasium `OrigamiEnv` rollout + pure-JAX `reset`/`step` | `OrigamiEnv, jax_env.reset/step` | Per-step rewards and episode return |
 | [`06_design_space.py`](06_design_space.py) | Configurable `DesignSpace`: presets, selection, constraints, presence, JSON, per-individual eval path | `DesignSpace, DesignSpaceBuilder, topology_signature, OrigamiEvaluator` | Dimensions, selections, paths |
 | [`07_populations.py`](07_populations.py) | Population seeding: seeds, interpolation, random, mixed, dedup, diversity, I/O, stats | `load_seeds, mixed_population, diversity_filter, save_population, population_stats` | Population shapes and provenance |
+| [`08_fold_fitness.py`](08_fold_fitness.py) | Movement vs. folding (hinge-target) fitness, weighted blends, per-hinge actuation and actuation schedules | `OrigamiEngine, fold_report, fold_score, FitnessWeights, blend_fitness` | Fold score, error statistics, blended score, actuation masks |
 | [`colab_gpu_validation.py`](colab_gpu_validation.py) | End-to-end MJX-Warp validation + benchmark on a Colab T4 | `OrigamiEngine, evaluate_population` | Timing and throughput table |
 
 ## How each maps to the tutorials
@@ -37,6 +38,7 @@ make examples
 | 05 | — (reinforcement learning) | [RL.md](../docs/RL.md) |
 | 06 | — (search-space configuration) | [SEARCH_SPACE.md](../docs/SEARCH_SPACE.md) |
 | 07 | — (population seeding) | [POPULATIONS.md](../docs/POPULATIONS.md) |
+| 08 | — (folding fitness) | [FITNESS.md](../docs/FITNESS.md) |
 | colab | Tutorial 2 — GPU quick start | [COLAB_GPU.md](../docs/COLAB_GPU.md) |
 
 ## Related entry points
@@ -54,6 +56,7 @@ make examples
 - [TUTORIALS.md](../docs/TUTORIALS.md) — eight step-by-step recipes
 - [API_REFERENCE.md](../docs/API_REFERENCE.md) — full API signatures
 - [EVALUATION.md](../docs/EVALUATION.md) — fitness functions and population evaluation
+- [FITNESS.md](../docs/FITNESS.md) — folding (hinge-target) fitness, weights, per-hinge actuation
 - [OPTIMIZATION_ES.md](../docs/OPTIMIZATION_ES.md) — black-box optimization over the search space
 - [SEARCH_SPACE.md](../docs/SEARCH_SPACE.md) — the configurable `DesignSpace`
 - [POPULATIONS.md](../docs/POPULATIONS.md) — population seeding and initialization

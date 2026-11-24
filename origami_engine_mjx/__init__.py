@@ -25,6 +25,16 @@ from .constants import (
 )
 from .engine import OrigamiEngine, compute_forward_displacement
 from .evaluation import evaluate_individual, evaluate_population
+from .fitness import (
+    FitnessBreakdown,
+    FitnessWeights,
+    blend_fitness,
+    blend_scores,
+    fold_report,
+    fold_score,
+    hinge_fold_error,
+    hinge_qpos,
+)
 from .geometry import build_pattern
 from .model import generate_xml
 from .patterns import (
@@ -51,6 +61,8 @@ __all__ = [
     "Z0",
     "BackendName",
     "Crease",
+    "FitnessBreakdown",
+    "FitnessWeights",
     "M",
     "OrigamiEngine",
     "Pattern",
@@ -58,11 +70,17 @@ __all__ = [
     "S",
     "SimulationResult",
     "V",
+    "blend_fitness",
+    "blend_scores",
     "build_pattern",
     "compute_forward_displacement",
     "evaluate_individual",
     "evaluate_population",
+    "fold_report",
+    "fold_score",
     "generate_xml",
+    "hinge_fold_error",
+    "hinge_qpos",
     "load_creases_from_json",
     "load_default_creases",
     "normalize_creases",

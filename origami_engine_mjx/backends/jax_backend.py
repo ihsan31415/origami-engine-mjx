@@ -15,7 +15,7 @@ import numpy as np
 
 from ..constants import VIB_AMP_X, VIB_AMP_Z, VIB_FREQ
 from ..geometry import build_pattern
-from ..model import generate_xml
+from ..model import generate_xml, resolve_actuated
 from ..serialization import normalize_creases
 from ..types import SimulationResult
 from .base import SimulationBackend
@@ -89,6 +89,9 @@ class JaxBackend(SimulationBackend):
         jit: bool = False,
         record: bool = False,
         record_every: int = 1,
+        *,
+        actuated=None,
+        actuation_schedule=None,
         **kwargs: Any,  # accept future backend kwargs
     ) -> SimulationResult:
         """Simulate one crease pattern.
@@ -100,6 +103,14 @@ class JaxBackend(SimulationBackend):
         ``record_every`` steps (always including the first and last step).
         Recording costs one host copy per sampled step and does not change the
         physics.
+
+        ``actuated`` selects which hinges are driven: ``None`` (all, the
+        default), a bool, or one bool per hinge in ``info["hinges"]`` order.
+        ``actuation_schedule`` makes that choice time-dependent: a callable
+        ``f(time_seconds) -> actuated`` evaluated once per physics step (it may
+        return any value that the ``actuated`` argument accepts).  Both are
+        recorded as ``info["actuated"]`` / ``info["actuator_hinges"]`` and the
+        achieved hinge angles as ``info["hinge_qpos"]``.
         """
         if duration <= 0:
             raise ValueError("duration must be positive.")
@@ -109,7 +120,7 @@ class JaxBackend(SimulationBackend):
         if not pat.valid:
             raise ValueError(f"invalid crease pattern: {pat.reason}")
 
-        xml, info = generate_xml(pat, normalized, coll_thick=coll_thick)
+        xml, info = generate_xml(pat, normalized, coll_thick=coll_thick, actuated=actuated)
         bundle = self.build_model(xml, info)
         mjx_model = bundle["mjx_model"]
         classic = bundle["classic_model"]
@@ -125,8 +136,19 @@ class JaxBackend(SimulationBackend):
 
         info = dict(info)
         info["table_qposadr"] = (table_x_qadr, table_z_qadr)
+        info["hinge_qposadr"] = hinge_adr
 
         targets = jnp.asarray(info["targets"], dtype=jnp.float32)
+        # One control per *model* actuator.  ``actuated`` fixes which hinges can
+        # ever be driven; ``actuation_schedule`` can switch individual actuators
+        # off per step.  An off actuator is not commanded to zero (that would
+        # fold the hinge flat): it tracks the current hinge angle, so the servo
+        # applies no torque and the hinge is free apart from its damping.
+        actuator_hinges = jnp.asarray(info["actuator_hinges"], dtype=int)
+        actuator_adr = jnp.asarray(hinge_adr, dtype=int)[actuator_hinges]
+        model_mask = np.asarray(info["actuated"], dtype=bool)
+        schedule_static = actuation_schedule is None
+        current_mask = model_mask.copy()
 
         # Zero hinge qpos initially.
         if len(hinge_adr):
@@ -145,10 +167,12 @@ class JaxBackend(SimulationBackend):
         timestep = float(classic.opt.timestep)
         n_steps = round(duration / timestep)
 
-        def step_fn(d, t_scalar):
+        def step_fn(d, t_scalar, active):
             frac = jnp.minimum(t_scalar / fold_duration, 1.0)
             s = frac * frac * (3.0 - 2.0 * frac)
-            d = d.replace(ctrl=s * targets)
+            drive = s * targets[actuator_hinges]
+            neutral = d.qpos[actuator_adr]
+            d = d.replace(ctrl=jnp.where(active, drive, neutral))
             if vibrate:
                 w = 2.0 * jnp.pi * freq_hz
                 qpos = d.qpos.at[table_x_qadr].set(amp_x * jnp.sin(w * t_scalar))
@@ -164,19 +188,28 @@ class JaxBackend(SimulationBackend):
         qpos_hist: list[np.ndarray] = []
         qvel_hist: list[np.ndarray] = []
         centroid_hist: list[np.ndarray] = []
+        mask_hist: list[np.ndarray] = []
+
+        def active_actuators(mask: np.ndarray):
+            return jnp.asarray(np.asarray(mask, dtype=bool)[model_mask], dtype=bool)
 
         def capture(d, t: float) -> None:
             times.append(float(t))
             qpos_hist.append(np.asarray(d.qpos).copy())
             qvel_hist.append(np.asarray(d.qvel).copy())
             centroid_hist.append(self._centroid_from_data(d, paper_mask))
+            if not schedule_static:
+                mask_hist.append(current_mask.copy())
 
         if record:
             capture(data, 0.0)
         final_data = data
         for i in range(n_steps):
-            t_scalar = jnp.asarray(i * timestep, dtype=jnp.float32)
-            final_data = step(final_data, t_scalar)
+            t = i * timestep
+            t_scalar = jnp.asarray(t, dtype=jnp.float32)
+            if not schedule_static:
+                current_mask = resolve_actuated(actuation_schedule(t), len(hinge_adr))
+            final_data = step(final_data, t_scalar, active_actuators(current_mask))
             if record and ((i + 1) % record_every == 0 or i + 1 == n_steps):
                 capture(final_data, (i + 1) * timestep)
 
@@ -185,6 +218,8 @@ class JaxBackend(SimulationBackend):
             raise FloatingPointError("unstable simulation: non-finite joint coordinates produced.")
 
         final_centroid = self._centroid_from_data(final_data, paper_mask)
+        info["actuated"] = current_mask
+        info["hinge_qpos"] = final_qpos[hinge_adr] if len(hinge_adr) else np.zeros(0, dtype=float)
 
         extra: dict[str, Any] = {}
         if record:
@@ -198,6 +233,8 @@ class JaxBackend(SimulationBackend):
                 # Hinge qpos columns, so plots never mix in stretch/panel joints.
                 "hinge_qposadr": np.asarray(hinge_adr, dtype=int),
             }
+            if mask_hist:
+                extra["trajectory"]["actuated"] = np.asarray(mask_hist, dtype=bool)
 
         return SimulationResult(
             model=bundle,
@@ -224,6 +261,8 @@ class JaxBackend(SimulationBackend):
         amp_z: float = VIB_AMP_Z,
         freq_hz: float = 75.0,
         batch_size: int | None = None,
+        actuated=None,
+        actuation_schedule=None,
     ) -> np.ndarray:
         """Evaluate a population of crease patterns sequentially.
 
@@ -231,9 +270,13 @@ class JaxBackend(SimulationBackend):
         so this loops over individuals and calls :meth:`run` eagerly.  There
         is no vmap or JIT batching in this path, and ``batch_size`` is
         ignored.  Scoring is always the +x centroid displacement.
+
+        ``actuated`` / ``actuation_schedule`` are forwarded to :meth:`run`, so
+        one schedule applies to every individual in the batch.  For a schedule
+        that depends on the genome, call :meth:`run` yourself with a closure.
         """
         scores = []
-        for i, creases in enumerate(population):
+        for creases in population:
             try:
                 result = self.run(
                     creases,
@@ -243,6 +286,8 @@ class JaxBackend(SimulationBackend):
                     amp_x=amp_x,
                     amp_z=amp_z,
                     freq_hz=freq_hz,
+                    actuated=actuated,
+                    actuation_schedule=actuation_schedule,
                 )
                 delta = result.final_centroid - result.initial_centroid
                 scores.append(float(delta[0]))  # forward along +x

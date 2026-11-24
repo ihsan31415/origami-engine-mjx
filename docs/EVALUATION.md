@@ -160,6 +160,48 @@ result records which path scored it, on `EvalRecord.path` / `BatchResult.paths`:
 `batched` (a same-topology batch), `bucketed` (a topology group of more than
 one), `single` (one individual), `invalid` (decode failed) or `cached`.
 
+## Fold (hinge-target) fitness and blends
+
+Movement asks *how far did the sheet go*; the fold score asks *did each hinge
+reach the angle it was designed for*. Both live in
+`origami_engine_mjx.fitness`, and any entry point takes `fold_weight` /
+`movement_weight` to blend them:
+
+```python
+from origami_engine_mjx import OrigamiEngine, fold_report, load_default_creases
+
+engine = OrigamiEngine(backend="jax")
+creases = load_default_creases()
+result = engine.run(creases, duration=0.02)
+report = fold_report(result, percent=True)
+print(report["score"], report["mean_abs_error_deg"])
+print(engine.evaluate(creases, duration=0.02, fold_weight=0.3))  # 70 % movement + 30 % folding
+```
+
+`fold_weight=0` is the default and gives exactly the movement score. See
+[FITNESS.md](FITNESS.md) for the formulas, the hinge-actuation options and
+practical advice on choosing a split.
+
+### Which evaluation path runs
+
+With `fold_weight = 0` (default) nothing changes: `evaluate_batch` uses the
+`batched` / `bucketed` / `single` paths described above. Turning on folding or
+per-hinge actuation forces the **structured** per-genome path (`single`, or
+`cached` with `use_cache=True`), because the fold score needs each result's
+hinge angles. It is the same simulation count — just the bookkeeping route
+changes — and `EvalRecord.descriptors` always gains `fold_score` and
+`fold_mean_abs_error_deg`.
+
+| Evaluator setting | Effect on the score |
+|---|---|
+| `fold_weight=0` (default) | Movement only — identical to previous releases. |
+| `movement_weight=70, fold_weight=30` | `0.7·movement + 0.3·fold`; `raw` is the blend, `fitness` follows `maximize`. |
+| `movement_scale=4.0` | Divides movement by 4 before blending when pushes are much larger than a sheet side. |
+| `actuated=[True]*8 + [False]*7` | Drives the first eight hinges; the rest are passive (still scored). |
+
+`movement_fraction` / `fold_fraction` on the evaluator report the normalized
+split (e.g. `0.7` / `0.3`).
+
 ## Logging generations (`GenerationLogger`)
 
 The library ships no optimization algorithm, so *you* own the loop. The

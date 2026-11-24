@@ -1,6 +1,6 @@
 # Simulation Pipeline
 
-> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · **Simulation** · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [Search space](SEARCH_SPACE.md) · [Populations](POPULATIONS.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
+> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · **Simulation** · [Evaluation](EVALUATION.md) · [Fitness](FITNESS.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [Search space](SEARCH_SPACE.md) · [Populations](POPULATIONS.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
 
 This document explains what happens inside `OrigamiEngine.run(...)`, how the MuJoCo XML model is generated, what the physical constants mean, and how the two MJX backends differ in execution.
 
@@ -22,7 +22,7 @@ backend.run(...) — step loop                    (actuator ramp + table vibrati
 SimulationResult(model, data, pattern, info, initial_centroid, final_centroid, backend)
 ```
 
-## Model generation — `generate_xml(pat, creases, name="origami_free", coll_thick=None)`
+## Model generation — `generate_xml(pat, creases, name="origami_free", coll_thick=None, actuated=None)`
 
 Returns `(xml: str, info: dict)`. The XML is standard MJCF; you can save it and open it in the MuJoCo viewer. **No MuJoCo runtime is required for generation** — it is pure string building (see [API_REFERENCE.md](API_REFERENCE.md)).
 
@@ -50,9 +50,23 @@ Global settings emitted into the XML:
 
 ### Actuators — fold targets
 
-One `<position name="fold_{h}" joint="crease_{h}" kp="2.0" kv="0.15" ctrlrange="±π" forcerange="±2.0"/>` per hinge (`KP`, `KV`, `FORCE_MAX`). The per-hinge target is `clip(sgn * crease.angle, ±MAX_FOLD)` where `sgn` mirrors the angle depending on which side of the hinge the child face lies (`MAX_FOLD = 0.98π`). Targets are returned in `info["targets"]` and the hinge metadata in `info["hinges"]` (`name`, `face`, `edge`, `target`).
+One `<position name="fold_{h}" joint="crease_{h}" kp="2.0" kv="0.15" ctrlrange="±π" forcerange="±2.0"/>` per **actuated** hinge (`KP`, `KV`, `FORCE_MAX`). The per-hinge target is `clip(sgn * crease.angle, ±MAX_FOLD)` where `sgn` mirrors the angle depending on which side of the hinge the child face lies (`MAX_FOLD = 0.98π`). Targets are returned in `info["targets"]` and the hinge metadata in `info["hinges"]` (`name`, `face`, `edge`, `target`).
 
-`info` dict keys: `hinges`, `targets` (np.ndarray), `n_faces`, `n_hinges`, `n_loops`.
+Every hinge of the pattern also exists as a hinge joint, so a pattern can have
+passive hinges that nothing drives:
+
+```python
+xml, info = generate_xml(pat, creases, actuated=[True, False])  # drive hinge 0 only
+```
+
+`actuated=None` (default) drives all hinges, `True`/`False` drives all or none,
+and a list of bools (one per hinge) picks individual hinges. The mask is
+returned as `info["actuated"]` and `info["actuator_hinges"]` lists, in order,
+the hinge index behind each actuator (element *i* of `ctrl` drives
+`hinges[info["actuator_hinges"][i]]`). A list of the wrong length raises
+`ValueError("actuated has N entries, expected one per hinge (M).")`.
+
+`info` dict keys: `hinges`, `targets` (np.ndarray), `n_faces`, `n_hinges`, `n_loops`, `actuated`, `actuator_hinges`.
 
 ### Support table
 
@@ -70,7 +84,7 @@ The table is kinematically vibrated (see below) and the paper rests on it via co
 
 `coll_thick=<float>` splits each mesh into a visual geom (`contype=0`) and a thinner collision geom (transparent, `COLL_THICK = THICK·0.1 = 1e-5` by default) — useful when paper self-collision at full thickness causes jitter.
 
-## The step loop — `OrigamiEngine.run(creases, duration=8.0, fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, coll_thick=None, record=False, record_every=1)`
+## The step loop — `OrigamiEngine.run(creases, duration=8.0, fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, coll_thick=None, record=False, record_every=1, actuated=None, actuation_schedule=None)`
 
 All backends share the same logical loop:
 
@@ -78,6 +92,7 @@ All backends share the same logical loop:
 2. `generate_xml` → backend `build_model` → backend `make_state`; all hinge qpos zeroed; `initial_centroid = mean XY of non-table geoms`.
 3. For each step `i` in `round(duration / timestep)`:
    - `t = i * timestep`; `frac = min(t / fold_duration, 1.0)`, smoothstep `s = frac²(3 − 2·frac)`; actuator commands = `s * targets` (targets ramp from 0 to full over `fold_duration` seconds).
+   - If `actuation_schedule` is given, `mask = actuation_schedule(t)` is evaluated **every step**; otherwise `mask` is the fixed `actuated` mask. An actuator whose hinge is off (or not actuated at all) is commanded to the hinge's **current angle**, which produces no servo torque, so that hinge is free — it is not braked towards 0.
    - If `vibrate`: table slide joints are set kinematically:
      `qpos = amp·sin(2π f t)`, `qvel = amp·2π f·cos(2π f t)` for `table_x` and `table_z`.
    - `mjx.step(model, data)` (JAX) or `mjw.step(warp_model, data)` (Warp).
@@ -95,6 +110,7 @@ sampled frame in `result.extra["trajectory"]`:
 | `qpos`, `qvel` | `(T, nq)` / `(T, nv)` | full state, same layout as the backend's `data` |
 | `centroid` | `(T, 2)` | mean XY of the paper geoms — the scored quantity |
 | `hinge_qposadr` | `(n_hinges,)` | fold-hinge `qpos` columns (excludes table/stretch/panel joints) |
+| `actuated` | `(T, n_hinges)` | only with an `actuation_schedule`: which hinges were driven at each frame |
 
 Recording does **not** change the physics: the final `qpos`, `centroid` and the
 score are identical with and without it (tested). It costs one host copy per
@@ -104,6 +120,10 @@ and a trajectory from a single simulation:
 ```python
 score, trajectory = engine.evaluate(creases, duration=1.0, return_trajectory=True)
 ```
+
+`result.info["hinge_qpos"]` holds the achieved hinge angles (in `info["hinges"]`
+order) after the run, ready for
+[`fold_score`](FITNESS.md) without touching `qpos` layouts.
 
 `result.info["table_qposadr"]` holds the `qpos` indices of the `table_x` /
 `table_z` slides, so
@@ -166,6 +186,10 @@ render_video(result, "four.mp4", views="all_sides")  # 4 views, one video
 render_video(result, "graphs.mp4", plot="xyz")  # x/y/z movement beside
 render_video(result, "run7.mp4", prefix="run7", camera="run7_top", plot=["x", "y"])
 ```
+
+Replays ignore actuation: the recorded `qpos`/`qvel` are the real physics, so a
+video shows exactly which hinges were driven (the per-frame `"actuated"` mask is
+available if you want to overlay that information yourself).
 
 Rendering needs an offscreen GL context (`MUJOCO_GL=egl` or `osmesa`) and
 `ffmpeg` for MP4 (a `.gif` path works without ffmpeg). Without ffmpeg a

@@ -1,6 +1,6 @@
 # Documentation index
 
-> **Documentation map:** **Docs index** · [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Backends](BACKENDS.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [Search space](SEARCH_SPACE.md) · [Populations](POPULATIONS.md) · [RL](RL.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Contributing](CONTRIBUTING.md)
+> **Documentation map:** **Docs index** · [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [Fitness](FITNESS.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Backends](BACKENDS.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [Search space](SEARCH_SPACE.md) · [Populations](POPULATIONS.md) · [RL](RL.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Contributing](CONTRIBUTING.md)
 
 This directory holds the long-form documentation for `origami-engine-mjx`. The
 [top-level README](../README.md) is the entry point; everything below expands a
@@ -18,8 +18,9 @@ part of it.
 | Document | What it covers |
 |---|---|
 | [CREASE_FORMAT.md](CREASE_FORMAT.md) | `p1` / `p2` / `angle` data and the JSON schema |
-| [SIMULATION.md](SIMULATION.md) | Model structure, stepping loop, trajectory recording, rendering (cameras, multi-view, graphs) |
-| [EVALUATION.md](EVALUATION.md) | Forward displacement, fitness, population evaluation, generation logging |
+| [SIMULATION.md](SIMULATION.md) | Model structure, stepping loop, per-hinge actuation, trajectory recording, rendering (cameras, multi-view, graphs) |
+| [EVALUATION.md](EVALUATION.md) | Forward displacement, fitness, population evaluation, movement/fold blends, generation logging |
+| [FITNESS.md](FITNESS.md) | Movement vs. paper-folding (hinge-target) fitness and how to weight them |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Package layout, data flow, backend responsibilities |
 | [BACKENDS.md](BACKENDS.md) | MJX-JAX vs MJX-Warp: semantics, features, limitations |
 
@@ -58,11 +59,13 @@ these docs:
 | [`05_rl_env.py`](../examples/05_rl_env.py) | [RL.md](RL.md) |
 | [`06_design_space.py`](../examples/06_design_space.py) | [SEARCH_SPACE.md](SEARCH_SPACE.md) |
 | [`07_populations.py`](../examples/07_populations.py) | [POPULATIONS.md](POPULATIONS.md) |
+| [`08_fold_fitness.py`](../examples/08_fold_fitness.py) | [FITNESS.md](FITNESS.md) |
 | [`colab_gpu_validation.py`](../examples/colab_gpu_validation.py) | [COLAB_GPU.md](COLAB_GPU.md) |
 
 Colab-ready notebooks that drive external optimizers, RL trainers and LLM
 proposers live in [`notebook_examples/`](../notebook_examples/README.md),
-including a single generic driver for every `evosax` strategy.
+including a single generic driver for every `evosax` strategy and a
+switchable-strategy notebook built around movement + folding fitness.
 
 ## See also
 

@@ -43,6 +43,7 @@ import numpy as np
 
 from ..constants import VIB_AMP_X, VIB_AMP_Z, VIB_FREQ
 from ..engine import OrigamiEngine, compute_forward_displacement
+from ..fitness import FitnessWeights, blend_scores, fold_report
 from ..types import BackendName
 from .design_space import DesignSpace
 from .search_space import SearchSpace
@@ -86,6 +87,8 @@ DESCRIPTOR_NAMES = (
     "final_x",
     "final_y",
     "fold_amount",
+    "fold_score",
+    "fold_mean_abs_error_deg",
 )
 
 
@@ -230,6 +233,16 @@ class OrigamiEvaluator:
         Cache results keyed by the exact genome bytes.  Useful for
         evolutionary loops that re-evaluate elites.  ``n_evaluations`` counts
         cache misses only.
+    fold_weight, movement_weight, movement_scale : float
+        Relative weights of the hinge-target ("fold") and movement components
+        of the fitness, see :class:`~origami_engine_mjx.fitness.FitnessWeights`.
+        ``fold_weight=0`` (default) means *movement only*: the score is exactly
+        the historical displacement.  ``movement_weight=70, fold_weight=30``
+        optimises a 70 % / 30 % blend.  ``movement_scale`` divides movement
+        before blending (default ``1.0``, the sheet side).
+    actuated :
+        Which hinges are driven — ``None`` (all, default), a bool, or one bool
+        per hinge of the decoded crease pattern.
     """
 
     def __init__(
@@ -249,9 +262,15 @@ class OrigamiEvaluator:
         batch_size: int | None = None,
         return_descriptors: bool = False,
         use_cache: bool = False,
+        fold_weight: float = 0.0,
+        movement_weight: float = 1.0,
+        movement_scale: float = 1.0,
+        actuated=None,
     ) -> None:
         if error_policy not in {"penalty", "raise"}:
             raise ValueError("error_policy must be 'penalty' or 'raise'")
+        # Validates the weights (non-negative, not both zero, positive scale).
+        self.weights = FitnessWeights(movement_weight, fold_weight, movement_scale)
         self.space = space
         self.backend: BackendName = backend
         self.duration = float(duration)
@@ -266,6 +285,7 @@ class OrigamiEvaluator:
         self.batch_size = batch_size
         self.return_descriptors = bool(return_descriptors)
         self.use_cache = bool(use_cache)
+        self.actuated = actuated
         if penalty is None:
             penalty = -1e6
         self.penalty = float(penalty)
@@ -277,6 +297,26 @@ class OrigamiEvaluator:
     # ------------------------------------------------------------------
     # Introspection
     # ------------------------------------------------------------------
+
+    @property
+    def fold_weight(self) -> float:
+        """Weight of the hinge-target component (``0`` = movement only)."""
+        return self.weights.fold
+
+    @property
+    def movement_weight(self) -> float:
+        """Weight of the movement component."""
+        return self.weights.movement
+
+    @property
+    def movement_fraction(self) -> float:
+        """Share of the fitness that comes from movement, in ``[0, 1]``."""
+        return self.weights.normalized()[0]
+
+    @property
+    def fold_fraction(self) -> float:
+        """Share of the fitness that comes from folding to target, in ``[0, 1]``."""
+        return self.weights.normalized()[1]
 
     @property
     def dim(self) -> int:
@@ -305,7 +345,11 @@ class OrigamiEvaluator:
         return OrigamiEngine(backend=self.backend)
 
     def _simulate(self, engine: OrigamiEngine, creases) -> tuple[float, dict[str, float]]:
-        """Run one simulation and return ``(raw, descriptors)``."""
+        """Run one simulation and return ``(raw, descriptors)``.
+
+        ``raw`` is the movement displacement when ``fold_weight == 0`` (the
+        historical behaviour), otherwise the weighted movement/fold blend.
+        """
         result = engine.run(
             creases,
             duration=self.duration,
@@ -314,8 +358,12 @@ class OrigamiEvaluator:
             amp_x=self.amp_x,
             amp_z=self.amp_z,
             freq_hz=self.freq_hz,
+            actuated=self.actuated,
         )
-        raw = float(compute_forward_displacement(result, trajectory=self.trajectory))
+        movement = float(compute_forward_displacement(result, trajectory=self.trajectory))
+        report = fold_report(result)
+        fold = float(report["score"])
+        raw = blend_scores(movement, fold, self.weights) if self.weights.fold > 0 else movement
         initial = np.asarray(result.initial_centroid, dtype=float)
         final = np.asarray(result.final_centroid, dtype=float)
         delta = final - initial
@@ -331,6 +379,8 @@ class OrigamiEvaluator:
             "final_x": float(final[0]),
             "final_y": float(final[1]),
             "fold_amount": fold_amount,
+            "fold_score": fold,
+            "fold_mean_abs_error_deg": float(report["mean_abs_error_deg"]),
         }
         return raw, descriptors
 
@@ -429,7 +479,9 @@ class OrigamiEvaluator:
             raise ValueError(f"expected genomes of shape (N, {self.dim}), got {X.shape}")
         n = X.shape[0]
         details = self.return_descriptors if return_details is None else bool(return_details)
-        details = details or self.use_cache  # cache needs structured records
+        # The fast path only returns movement scores, so a blended objective
+        # (and the cache) need the structured per-genome path.
+        details = details or self.use_cache or self.weights.fold > 0  # cache needs structured records
 
         t_start = time.perf_counter()
         records: list[EvalRecord | None] = [None] * n
@@ -529,6 +581,10 @@ class OrigamiEvaluator:
                     amp_z=self.amp_z,
                     freq_hz=self.freq_hz,
                     batch_size=self.batch_size,
+                    actuated=self.actuated,
+                    fold_weight=self.weights.fold,
+                    movement_weight=self.weights.movement,
+                    movement_scale=self.weights.movement_scale,
                 ).scores
             except Exception as exc:
                 # Keep the fast path consistent with the structured path: a

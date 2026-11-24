@@ -73,6 +73,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in `docs/EVALUATION.md`, rendering/logging API in `docs/API_REFERENCE.md`;
   tests `tests_mjx/test_rendering_generation.py` (fast) and
   `tests_mjx/test_rendering_video.py` (slow, needs GL + `ffmpeg`).
+- Per-hinge actuation: `generate_xml(..., actuated=None)`, `OrigamiEngine.run` /
+  `run_batch` and both backends accept `actuated` (`None` = all, a bool, or one
+  bool per hinge) and `actuation_schedule=f(t)` evaluated every physics step, so
+  hinges can be driven, left passive, or switched on/off during a run. Non-driven
+  hinges are not braked to zero; the mask is reported in `info["actuated"]` /
+  `info["actuator_hinges"]`, the per-frame trajectory records `"actuated"`, and
+  `info["hinge_qpos"]` holds the achieved angles.
+- `origami_engine_mjx/fitness/` — `fold_score`, `fold_report`,
+  `hinge_fold_error`, `hinge_qpos`, `FitnessWeights`, `blend_scores`,
+  `blend_fitness` and `FitnessBreakdown`: a tolerance-normalised **paper-folding
+  (hinge-target)** score and a weighted blend with the movement score.
+  `fold_weight=0` (default) reproduces the historical movement score. New
+  `movement_weight` / `fold_weight` / `movement_scale` arguments on
+  `OrigamiEngine.evaluate` / `evaluate_population`, `evaluate_individual` /
+  `evaluate_population`, and `OrigamiEvaluator`; descriptors gain `fold_score`
+  and `fold_mean_abs_error_deg`; population results carry
+  `extra["movement_scores"]` / `extra["fold_scores"]`.
+- Documentation `docs/FITNESS.md`; activation/fitness guidance in
+  `docs/SIMULATION.md`, `docs/EVALUATION.md`, `docs/INTEGRATIONS.md` and
+  `docs/API_REFERENCE.md`; tests `tests_mjx/test_actuation_fitness.py`; example
+  `examples/08_fold_fitness.py`.
+- `notebook_examples/05_evosax_switchable.ipynb` — one beginner-friendly notebook
+  that switches between `evosax` strategies via a single `STRATEGY` variable and
+  demonstrates the movement/folding blend; the existing notebooks now install
+  from a pinned commit and link to the main repository.
 
 ### Changed
 - `OrigamiEnv` / `OrigamiVectorEnv` accept a `SearchSpace` **or** an angle-only,

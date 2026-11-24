@@ -29,6 +29,7 @@ This project is a dual-backend **MuJoCo MJX** origami folding simulator — a mi
 - Supports differentiable simulation and `jax.jit` / `jax.vmap` / `jax.lax.scan` on the JAX backend (CPU, NVIDIA GPU, or TPU)
 - Supports high-throughput batched population evaluation on the Warp backend (NVIDIA CUDA GPU, e.g. Colab T4)
 - Measures the forward displacement of the paper as a fitness signal, for single genomes or whole populations
+- Scores **how well the paper folds to its target angles** and blends that with movement at any percentage split (`movement_weight` / `fold_weight`), with per-hinge actuation (drive some hinges, leave others passive, or switch them on/off during a run)
 - Exposes ES / RL / AI **integration interfaces** (a fixed-topology search space, a stateless evaluator, Gymnasium and JAX-functional environments, optimizer adapters) without shipping any optimization or learning algorithm
 - Offers a **configurable design space** (`DesignSpace`: fold angles, crease endpoints/geometry, crease count) and **population seeding** helpers (seed files, interpolation, random and mixed initialization) on top of the default fixed-topology search space
 - Auto-selects a backend with `backend="auto"` (`warp` if a CUDA GPU is available, otherwise `jax`)
@@ -135,6 +136,25 @@ result = engine.evaluate_population(population, duration=2.0)
 print(result.scores)
 ```
 
+### Optimise for folding, not just movement
+
+```python
+from origami_engine_mjx import fold_report
+
+# A short run keeps a CPU honest; raise the duration on a GPU.
+# How far off are the hinges from the angles the design asks for?
+result = engine.run(creases, duration=0.02)
+print(fold_report(result, percent=True)["score"])  # 0..100
+
+# 70 % movement + 30 % folding (the default is movement only)
+score = engine.evaluate(creases, duration=0.02, movement_weight=70, fold_weight=30)
+
+# Drive only the first two hinges; the others fold passively
+result = engine.run(creases, duration=0.02, actuated=[True, True] + [False] * 13)
+```
+
+See [FITNESS.md](docs/FITNESS.md).
+
 On Google Colab with an NVIDIA T4:
 
 ```python
@@ -166,6 +186,7 @@ For in-depth information, see the dedicated documentation files:
 - **[API_REFERENCE.md](docs/API_REFERENCE.md)** — complete API signatures
 - **[SIMULATION.md](docs/SIMULATION.md)** — model structure, stepping loop, rendering
 - **[EVALUATION.md](docs/EVALUATION.md)** — fitness functions and population evaluation
+- **[FITNESS.md](docs/FITNESS.md)** — movement vs. folding fitness, per-hinge actuation, weighted blends
 - **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** — package layout, data flow, backend responsibilities
 - **[BACKENDS.md](docs/BACKENDS.md)** — MJX-JAX vs MJX-Warp: semantics, features, limitations
 - **[COLAB_GPU.md](docs/COLAB_GPU.md)** — Colab T4 setup, validation checklist, benchmarking
@@ -178,7 +199,7 @@ For in-depth information, see the dedicated documentation files:
 - **[SEARCH_SPACE.md](docs/SEARCH_SPACE.md)** — the configurable `DesignSpace` (angles, geometry, crease count)
 - **[POPULATIONS.md](docs/POPULATIONS.md)** — population seeding / initialization
 - **[RL.md](docs/RL.md)** — Gymnasium and JAX-functional reinforcement-learning environments
-- **[notebook_examples/](notebook_examples/README.md)** — Colab-ready notebooks for external optimizers, RL and LLM agents
+- **[notebook_examples/](notebook_examples/README.md)** — Colab-ready notebooks for external optimizers, RL and LLM agents (start with [05 · `evosax`, switch algorithms](notebook_examples/05_evosax_switchable.ipynb))
 - `examples/` — runnable scripts (see the table below)
 
 *All documentation lives in [`docs/`](docs).*
@@ -204,6 +225,7 @@ For in-depth information, see the dedicated documentation files:
 - `origami_engine_mjx/backend.py` — lazy import guards for mujoco / mjx-jax / mjx-warp
 - `origami_engine_mjx/engine.py` — `OrigamiEngine`, the public facade with backend selection
 - `origami_engine_mjx/evaluation.py` — `evaluate_individual` / `evaluate_population`
+- `origami_engine_mjx/fitness/` — movement + folding (hinge-target) scores and their weighted blend
 - `origami_engine_mjx/integrations/` — ES/RL/AI interfaces (no algorithms): `search_space.py` (`SearchSpace`), `design_space.py` (`DesignSpace`, the configurable angles/geometry/crease-count space), `evaluator.py` (`OrigamiEvaluator`, descriptors), `population.py` (seed loading, interpolation, random / mixed initialization, population I/O), `adapters.py` (pymoo / nevergrad / cma / evosax), `env.py` (`OrigamiEnv`, `OrigamiVectorEnv`), `jax_env.py` (pure-JAX `reset` / `step`), `plumbing.py` (seeding, genome/checkpoint I/O, run logging, benchmark)
 - `origami_engine_mjx/backends/` — `base.py` (`SimulationBackend` ABC), `jax_backend.py` (`put_model` / `make_data` / `mjx.step`, optional jit), `warp_backend.py` (`mjw.make_model` / `make_data` / `mjw.step`, GPU), and a registry with `get_backend(name)`
 - `origami_engine_mjx/schemas/` — JSON schema for crease files

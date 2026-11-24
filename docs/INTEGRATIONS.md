@@ -1,6 +1,6 @@
 # Integrations: ES / RL / AI interfaces
 
-> **Documentation map:** [README](../README.md) · [Docs index](README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Backends](BACKENDS.md) · **Integrations** · [Optimization (ES)](OPTIMIZATION_ES.md) · [Search space](SEARCH_SPACE.md) · [Populations](POPULATIONS.md) · [RL](RL.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Contributing](CONTRIBUTING.md)
+> **Documentation map:** [README](../README.md) · [Docs index](README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [Fitness](FITNESS.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Backends](BACKENDS.md) · **Integrations** · [Optimization (ES)](OPTIMIZATION_ES.md) · [Search space](SEARCH_SPACE.md) · [Populations](POPULATIONS.md) · [RL](RL.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Contributing](CONTRIBUTING.md)
 
 This document is the overview of the `origami_engine_mjx.integrations`
 subpackage. It explains what the package is for, the design boundary it keeps,
@@ -120,7 +120,23 @@ batch = evaluator.evaluate_batch(space.sample(0, size=8))
 print(batch.fitness, batch.best_index())
 ```
 
-The search space is configurable — see [SEARCH_SPACE.md](SEARCH_SPACE.md) for the
+## Movement and folding objectives
+
+By default the evaluator maximises **movement** (centroid displacement). Pass
+`movement_weight` / `fold_weight` to blend in a **paper-folding** objective —
+how closely each hinge reaches its target angle (see [FITNESS.md](FITNESS.md)):
+
+```python
+# 70 % movement, 30 % folding to the designed angles.
+evaluator = OrigamiEvaluator(space, backend="jax", movement_weight=70, fold_weight=30)
+evaluator.evaluate(space.sample()).descriptors["fold_score"]  # 0..1
+
+# Drive only some hinges; the rest fold passively (and are still scored).
+evaluator = OrigamiEvaluator(space, backend="jax", actuated=[True] * 8 + [False] * 7)
+```
+
+`fold_weight=0` (the default) is exactly the historical movement score, so
+nothing changes unless you ask for it. The search space is configurable — see [SEARCH_SPACE.md](SEARCH_SPACE.md) for the
 `DesignSpace` presets/builder and [POPULATIONS.md](POPULATIONS.md) for seeding an
 initial population. From there, hand `evaluator.to_minimizer()` to
 `nevergrad`/`cma`, or `to_pymoo_problem(evaluator)` to `pymoo`, or wrap the
@@ -167,7 +183,8 @@ exactly one `OrigamiEngine` run.
 ## Relationship to the rest of the package
 
 - The evaluator is a thin layer over `OrigamiEngine.run` and
-  `compute_forward_displacement`; it does not change their behaviour.
+  `compute_forward_displacement` (plus `fold_score` when `fold_weight > 0`); it
+  does not change their behaviour.
 - The environments are built directly on the backend internals
   (`JaxBackend().build_model` / `mjx.make_data` / `mjx.step`) because there is no
   per-step public backend API. The core modules are unchanged. The environments
@@ -184,6 +201,7 @@ exactly one `OrigamiEngine` run.
 - [SEARCH_SPACE.md](SEARCH_SPACE.md) — the configurable `DesignSpace`
 - [POPULATIONS.md](POPULATIONS.md) — population seeding / initialization
 - [RL.md](RL.md) — the reinforcement-learning guide
-- [EVALUATION.md](EVALUATION.md) — the underlying fitness signal
+- [EVALUATION.md](EVALUATION.md) — the underlying movement fitness
+- [FITNESS.md](FITNESS.md) — folding (hinge-target) fitness and weighted blends
 - [ARCHITECTURE.md](ARCHITECTURE.md) — where `integrations/` sits in the package
 - [GLOSSARY.md](GLOSSARY.md) — search space, genome, descriptor, episode
