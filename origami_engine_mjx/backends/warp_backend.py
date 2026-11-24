@@ -97,7 +97,16 @@ class WarpBackend(SimulationBackend):
         amp_z: float = VIB_AMP_Z,
         freq_hz: float = VIB_FREQ,
         coll_thick: float | None = None,
+        record: bool = False,
+        record_every: int = 1,
+        **kwargs: Any,  # accept future backend kwargs
     ) -> SimulationResult:
+        """Simulate one crease pattern (see :meth:`JaxBackend.run`).
+
+        ``record=True`` stores the same per-frame trajectory dict in
+        ``result.extra["trajectory"]``; recording copies state to host memory
+        every ``record_every`` steps.
+        """
         if duration <= 0:
             raise ValueError("duration must be positive.")
 
@@ -119,6 +128,9 @@ class WarpBackend(SimulationBackend):
         table_z_qadr = int(classic.joint("table_z").qposadr[0])
         table_z_dadr = int(classic.joint("table_z").dofadr[0])
 
+        info = dict(info)
+        info["table_qposadr"] = (table_x_qadr, table_z_qadr)
+
         targets = np.asarray(info["targets"], dtype=np.float32)
 
         # Zero hinge qpos.
@@ -132,6 +144,20 @@ class WarpBackend(SimulationBackend):
 
         timestep = float(classic.opt.timestep)
         n_steps = round(duration / timestep)
+        record_every = max(1, int(record_every))
+        times: list[float] = []
+        qpos_hist: list[np.ndarray] = []
+        qvel_hist: list[np.ndarray] = []
+        centroid_hist: list[np.ndarray] = []
+
+        def capture(t: float) -> None:
+            times.append(float(t))
+            qpos_hist.append(np.array(data.qpos.numpy(), copy=True))
+            qvel_hist.append(np.array(data.qvel.numpy(), copy=True))
+            centroid_hist.append(self._centroid_from_data(data, paper_mask))
+
+        if record:
+            capture(0.0)
 
         for step_i in range(n_steps):
             t = step_i * timestep
@@ -145,12 +171,27 @@ class WarpBackend(SimulationBackend):
                 data.qpos.numpy()[table_z_qadr] = amp_z * np.sin(w * t)
                 data.qvel.numpy()[table_z_dadr] = amp_z * w * np.cos(w * t)
             mjw.step(warp_model, data)
+            if record and ((step_i + 1) % record_every == 0 or step_i + 1 == n_steps):
+                capture((step_i + 1) * timestep)
 
         final_qpos = data.qpos.numpy()
         if not np.isfinite(final_qpos).all():
             raise FloatingPointError("unstable simulation: non-finite joint coordinates produced.")
 
         final_centroid = self._centroid_from_data(data, paper_mask)
+
+        extra: dict[str, Any] = {}
+        if record:
+            if not times:
+                capture(n_steps * timestep)
+            extra["trajectory"] = {
+                "time": np.asarray(times, dtype=float),
+                "qpos": np.asarray(qpos_hist),
+                "qvel": np.asarray(qvel_hist),
+                "centroid": np.asarray(centroid_hist, dtype=float),
+                # Hinge qpos columns, so plots never mix in stretch/panel joints.
+                "hinge_qposadr": np.asarray(hinge_adr, dtype=int),
+            }
 
         return SimulationResult(
             model=bundle,
@@ -160,6 +201,7 @@ class WarpBackend(SimulationBackend):
             initial_centroid=initial_centroid,
             final_centroid=final_centroid,
             backend="warp",
+            extra=extra,
         )
 
     # ------------------------------------------------------------------

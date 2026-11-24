@@ -160,9 +160,64 @@ result records which path scored it, on `EvalRecord.path` / `BatchResult.paths`:
 `batched` (a same-topology batch), `bucketed` (a topology group of more than
 one), `single` (one individual), `invalid` (decode failed) or `cached`.
 
+## Logging generations (`GenerationLogger`)
+
+The library ships no optimization algorithm, so *you* own the loop. The
+`GenerationLogger` records it: per-generation statistics, the global best, and
+a checkpoint of the best individual of **every** generation.
+
+```python
+from origami_engine_mjx.integrations import GenerationLogger, SearchSpace
+
+space = SearchSpace.from_default_pattern()
+with GenerationLogger("runs/v1/run.jsonl", space, keep_every_best=True) as log:
+    for gen in range(n_generations):
+        genomes = my_algorithm.ask()  # your search
+        batch = evaluator.evaluate_batch(genomes)  # library scoring
+        log.log_batch(batch, genomes, generation=gen)  # optional per-individual rows
+        summary = log.end_generation(gen, batch, genomes)
+        print(
+            summary.generation,
+            f"best={summary.best_fitness:.5f}",
+            f"mean={summary.mean_fitness:.5f}",
+            "NEW BEST" if summary.improved else "",
+        )
+print(log.best_fitness, log.best_generation)
+```
+
+`end_generation(generation, batch, genomes)` returns a `GenerationSummary`
+with `best_fitness`, `best_index`, `mean_fitness`, `std_fitness`,
+`worst_fitness`, `median_fitness`, `n_ok`, `n_failed`, `n_cache_hits`,
+`best_genome`, `global_best_fitness`/`global_best_generation`, `wall_time` /
+`gen_wall_time` (so you can time each generation and the run), `evals_so_far`
+and `improved`.
+
+Files written (all optional, all next to `path`):
+
+| file | contents |
+|---|---|
+| `run.jsonl` / `run.csv` | one row per call: `kind="generation"` summaries and, if you call it, `kind="eval"` rows tagged with `generation`/`index` |
+| `run.summary.json` | all generation rows plus a `best` block (genome, generation, total evals, wall time) |
+| `run.best.json` | checkpoint of the generation that last improved the global best |
+| `run.best_gen_0007.json` | with `keep_every_best=True`, the best of **each** generation |
+
+Options: `maximising=False` for a loss (affects which genome is "best" —
+fitness values are logged unchanged), `descriptor_names=` to pin the CSV
+columns, `path=None` for in-memory only (`log.history`, `log.evals`,
+`log.curve()` for `(generations, best, mean, global_best)`). Checkpoints use
+`save_best`/`load_best`, so `load_best("run.best.json", space)` returns the
+genome and its metadata (generation, fitness, mean/std, `maximising`).
+
+Reading a finished run back: `load_generation_history("run.jsonl")` returns the
+generation rows as dicts, and
+`origami_engine_mjx.rendering.plot_history(log)` (or the loaded rows) draws
+best/mean per generation plus the running global best. Use
+`RunLogger(path, include_generation=True)` if you only need flat per-individual
+rows with a `generation` column.
+
 ## See also
 
-- [SIMULATION.md](SIMULATION.md) — what `engine.run` does with these parameters
+- [SIMULATION.md](SIMULATION.md) — what `engine.run` does with these parameters, trajectory recording and rendering
 - [OPTIMIZATION_ES.md](OPTIMIZATION_ES.md) — using the fitness signal as a black-box objective
 - [SEARCH_SPACE.md](SEARCH_SPACE.md) — configurable `DesignSpace` targets
 - [TUTORIALS.md](TUTORIALS.md) — Tutorials 3 and 6

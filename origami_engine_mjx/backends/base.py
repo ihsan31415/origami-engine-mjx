@@ -42,7 +42,11 @@ class SimulationBackend(ABC):
         freq_hz: float = 75.0,
         coll_thick: float | None = None,
     ) -> SimulationResult:
-        """Run a single simulation and return the result."""
+        """Run a single simulation and return the result.
+
+        Backends also accept ``record=True`` / ``record_every=int`` to store a
+        per-frame trajectory in ``result.extra["trajectory"]``.
+        """
 
     @abstractmethod
     def run_batch(

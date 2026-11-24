@@ -18,8 +18,8 @@ part of it.
 | Document | What it covers |
 |---|---|
 | [CREASE_FORMAT.md](CREASE_FORMAT.md) | `p1` / `p2` / `angle` data and the JSON schema |
-| [SIMULATION.md](SIMULATION.md) | Model structure, stepping loop, rendering |
-| [EVALUATION.md](EVALUATION.md) | Forward displacement, fitness, population evaluation |
+| [SIMULATION.md](SIMULATION.md) | Model structure, stepping loop, trajectory recording, rendering (cameras, multi-view, graphs) |
+| [EVALUATION.md](EVALUATION.md) | Forward displacement, fitness, population evaluation, generation logging |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Package layout, data flow, backend responsibilities |
 | [BACKENDS.md](BACKENDS.md) | MJX-JAX vs MJX-Warp: semantics, features, limitations |
 

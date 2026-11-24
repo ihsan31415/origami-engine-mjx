@@ -139,6 +139,11 @@ class RunLogger:
     descriptor_names : sequence[str] | None
         Descriptors to include as columns/keys.  Defaults to the keys present
         in the first record.
+    include_generation : bool
+        Add a ``generation`` key to every row (``None`` unless the call passes
+        ``generation=``).  Off by default so existing files keep their exact
+        schema; use :class:`~origami_engine_mjx.integrations.generation_log.GenerationLogger`
+        for per-generation statistics and best-genome checkpoints.
 
     Examples
     --------
@@ -146,7 +151,14 @@ class RunLogger:
     ...     log.log_batch(evaluator.evaluate_batch(genomes), genomes)
     """
 
-    def __init__(self, path, format: str | None = None, descriptor_names: Iterable[str] | None = None) -> None:
+    def __init__(
+        self,
+        path,
+        format: str | None = None,
+        descriptor_names: Iterable[str] | None = None,
+        *,
+        include_generation: bool = False,
+    ) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if format is None:
@@ -155,6 +167,7 @@ class RunLogger:
             raise ValueError("format must be 'jsonl' or 'csv'")
         self.format = format
         self._descriptor_names = list(descriptor_names) if descriptor_names is not None else None
+        self.include_generation = bool(include_generation)
         self._fh: Any = None
         self._writer: Any = None
 
@@ -170,13 +183,19 @@ class RunLogger:
         self._fh = self.path.open("w", newline="")
         if self.format == "csv":
             fieldnames = ["genome", "fitness", "raw", "status", "time"]
+            if self.include_generation:
+                fieldnames.insert(0, "generation")
             if self._descriptor_names:
                 fieldnames += list(self._descriptor_names)
             self._writer = csv.DictWriter(self._fh, fieldnames=fieldnames, extrasaction="ignore")
             self._writer.writeheader()
 
-    def log(self, record: EvalRecord, genome=None) -> None:
-        """Append a single :class:`~origami_engine_mjx.integrations.evaluator.EvalRecord`."""
+    def log(self, record: EvalRecord, genome=None, *, generation: int | None = None) -> None:
+        """Append a single :class:`~origami_engine_mjx.integrations.evaluator.EvalRecord`.
+
+        ``generation`` is only written when the logger was created with
+        ``include_generation=True``.
+        """
         # Infer the descriptor columns from the first record *before* opening the
         # file, so the CSV header includes them (JSONL does not need a header).
         if self._descriptor_names is None:
@@ -189,6 +208,8 @@ class RunLogger:
             "status": record.status,
             "time": float(record.time),
         }
+        if self.include_generation:
+            row["generation"] = None if generation is None else int(generation)
         for k, v in record.descriptors.items():
             row[k] = float(v)
         if self.format == "jsonl":
@@ -198,12 +219,12 @@ class RunLogger:
             self._writer.writerow(row)
         self._fh.flush()
 
-    def log_batch(self, result: BatchResult, genomes=None) -> None:
+    def log_batch(self, result: BatchResult, genomes=None, *, generation: int | None = None) -> None:
         """Append a whole :class:`~origami_engine_mjx.integrations.evaluator.BatchResult`."""
         genomes_arr = None if genomes is None else np.asarray(genomes, dtype=float)
         for i, rec in enumerate(result.as_records()):
             genome = None if genomes_arr is None else genomes_arr[i]
-            self.log(rec, genome)
+            self.log(rec, genome, generation=generation)
 
     def close(self) -> None:
         """Flush and close the underlying file handle."""

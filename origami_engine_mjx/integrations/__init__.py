@@ -27,6 +27,9 @@ Modules
   for ``jit`` / ``vmap`` / ``scan``.
 * :mod:`~origami_engine_mjx.integrations.plumbing` — seeding, genome/checkpoint
   I/O, run logging and a throughput benchmark.
+* :mod:`~origami_engine_mjx.integrations.generation_log` — per-generation
+  statistics, best-per-generation checkpoints and a summary file
+  (:class:`GenerationLogger`).
 
 Everything here is additive: it imports the existing public API and never
 changes it.  See ``docs/INTEGRATIONS.md`` for the full guide.
@@ -43,6 +46,7 @@ Examples
 from .adapters import space_spec, to_evosax_fitness, to_nevergrad_function, to_pymoo_problem
 from .design_space import ANGLE, COORD, PRESENCE, DesignSpace, DesignSpaceBuilder, Variable
 from .evaluator import DESCRIPTOR_NAMES, BatchResult, EvalRecord, OrigamiEvaluator, topology_signature
+from .generation_log import GenerationLogger, GenerationSummary, load_generation_history
 from .plumbing import (
     RunLogger,
     benchmark,
@@ -87,6 +91,8 @@ __all__ = [
     "DesignSpace",
     "DesignSpaceBuilder",
     "EvalRecord",
+    "GenerationLogger",
+    "GenerationSummary",
     "OrigamiEvaluator",
     "Population",
     "RunLogger",
@@ -102,6 +108,7 @@ __all__ = [
     "jitter",
     "lhs_population",
     "load_best",
+    "load_generation_history",
     "load_genome",
     "load_population",
     "load_seeds",

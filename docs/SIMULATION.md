@@ -70,7 +70,7 @@ The table is kinematically vibrated (see below) and the paper rests on it via co
 
 `coll_thick=<float>` splits each mesh into a visual geom (`contype=0`) and a thinner collision geom (transparent, `COLL_THICK = THICK·0.1 = 1e-5` by default) — useful when paper self-collision at full thickness causes jitter.
 
-## The step loop — `OrigamiEngine.run(creases, duration=8.0, fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, coll_thick=None)`
+## The step loop — `OrigamiEngine.run(creases, duration=8.0, fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, coll_thick=None, record=False, record_every=1)`
 
 All backends share the same logical loop:
 
@@ -83,6 +83,32 @@ All backends share the same logical loop:
    - `mjx.step(model, data)` (JAX) or `mjw.step(warp_model, data)` (Warp).
 4. Stability check: non-finite `qpos` → `FloatingPointError("unstable simulation: non-finite joint coordinates produced.")`.
 5. Returns `SimulationResult` with `final_centroid` computed from the paper geoms.
+
+### Recording a trajectory — `record=True`
+
+Passing `record=True` (and optionally `record_every=N` steps) stores every
+sampled frame in `result.extra["trajectory"]`:
+
+| key | shape | meaning |
+|---|---|---|
+| `time` | `(T,)` | frame time in seconds (first frame `0.0`, last frame `duration`) |
+| `qpos`, `qvel` | `(T, nq)` / `(T, nv)` | full state, same layout as the backend's `data` |
+| `centroid` | `(T, 2)` | mean XY of the paper geoms — the scored quantity |
+| `hinge_qposadr` | `(n_hinges,)` | fold-hinge `qpos` columns (excludes table/stretch/panel joints) |
+
+Recording does **not** change the physics: the final `qpos`, `centroid` and the
+score are identical with and without it (tested). It costs one host copy per
+sampled frame, so keep `record_every` ≥ 1 and thin long runs. To get a score
+and a trajectory from a single simulation:
+
+```python
+score, trajectory = engine.evaluate(creases, duration=1.0, return_trajectory=True)
+```
+
+`result.info["table_qposadr"]` holds the `qpos` indices of the `table_x` /
+`table_z` slides, so
+[`Trajectory.center_of_mass()`](API_REFERENCE.md#origamienginemjxrendering-video-cameras-plots)
+can remove the table's own motion from the measured movement.
 
 ### Backend-specific state handling
 
@@ -122,11 +148,119 @@ Defined in `origami_engine_mjx/constants.py` and re-exported at package level:
 
 ## Rendering
 
-Neither MJX backend renders directly — `mujoco.Renderer` works only with classic `MjModel`/`MjData`. For video rendering, install the classic `origami-engine` package (in a separate environment; both packages define the `origami_engine` module) or copy MJX state back with `mjx.get_data` into a classic `MjData`.
+MJX states cannot be drawn directly — `mujoco.Renderer` only works with classic
+`MjModel`/`MjData`. Both backends therefore keep the classic model in their
+bundle (`result.model["classic_model"]`) and record the joint trajectory; the
+`origami_engine_mjx.rendering` package replays each recorded frame into a
+classic `MjData` (`mj_forward` + `update_scene`) and composites the result.
+
+```python
+from origami_engine_mjx.rendering import render_video
+
+result = engine.run(creases, duration=1.0, record=True)
+
+render_video(result, "default.mp4")  # MuJoCo default view
+render_video(result, "top.mp4", camera="top")  # named preset
+render_video(result, "manual.mp4", camera=(40, -20, 1.3))  # az, el, distance (deg/m)
+render_video(result, "four.mp4", views="all_sides")  # 4 views, one video
+render_video(result, "graphs.mp4", plot="xyz")  # x/y/z movement beside
+render_video(result, "run7.mp4", prefix="run7", camera="run7_top", plot=["x", "y"])
+```
+
+Rendering needs an offscreen GL context (`MUJOCO_GL=egl` or `osmesa`) and
+`ffmpeg` for MP4 (a `.gif` path works without ffmpeg). Without ffmpeg a
+`RuntimeWarning` is raised and frames are kept in memory instead of failing.
+
+### Cameras
+
+A camera is MuJoCo's free-camera spherical form (`lookat`, `distance`,
+`azimuth`, `elevation`; angles in **degrees**). Three ways to pick one:
+
+* **Preset name** — `top`, `side`, `side_left`, `top_side_left`, `iso_top`, …
+  (26 presets; see `CAMERA_PRESETS`). `default` reproduces MuJoCo's own free
+  camera, so it matches the old `OrigamiEnv.render` view.
+* **Manual coordinates** — a tuple `(azimuth, elevation[, distance[, zoom]])`
+  or a mapping `{"azimuth": 40, "elevation": -20, "distance": 1.4,
+  "zoom": 1.0, "lookat": (0.5, 0.5, 0.0)}`. `zoom < 1` moves closer.
+* **Prefix** — `prefix="run7"` namespaces preset names, so `"run7_top"` (or
+  bare `"run7"` = `"run7_default"`) resolves without a global preset. The
+  resolved cameras are saved next to the video as `<stem>.camera.json` (and
+  `save_camera` / `load_camera` round-trip one explicitly).
+
+The default look-at point is the centre of the pattern's bounding box. See the
+preset reference grid in [TUTORIALS.md](TUTORIALS.md).
+
+### Multi-view videos
+
+`views=` / `cameras=` take a list of views and concatenate them into **one**
+video, left to right, each letterboxed to `resolution` so nothing is distorted.
+`views="all_sides"` expands to four look-down views (`iso_top`,
+`iso_top_side`, `top`, `iso_top_left`) — one 4-view video instead of four
+separate ones. With `plot=` the camera row and the graph column are placed side
+by side (output width grows by 50 %).
+
+### Movement graphs beside the video
+
+`plot=` adds matplotlib panels to every frame, one per axis:
+
+| `plot` | panels |
+|---|---|
+| `"x"` / `"y"` | centre-of-mass movement along that axis (relative to frame 0) |
+| `"z"` | mean absolute fold-hinge angle, i.e. how far the folds have closed |
+| `"xyz"` | all three, stacked |
+| `["x", "y"]` | those panels, left to right |
+
+The curve is drawn with a progress marker, so it grows with the video.
+The same plots are available standalone as
+`plot_trajectory(result, path="movement.png")` (no GL needed), and each axis'
+series through `Trajectory.center_of_mass()`, `Trajectory.velocity()` and
+`Trajectory.hinge_angles()`.
+
+### The frequency/amplitude overlay
+
+Every rendered frame carries a small log in its **bottom-left corner**
+(`overlay="freq/amp"`, the default):
+
+```
+freq=75.0 Hz
+amp x=0.0000 m
+amp z=0.0013 m
+```
+
+Values come from the `excitation={"freq_hz", "amp_x", "amp_z", "vibrate"}`
+mapping (defaults: the `VIB_*` constants). `vibrate=False` prints
+`vibration off`. Pass `overlay="gen {index} | {freq_hz:.0f} Hz"` for a custom
+format (fields: `t`, `frac`, `index`, `freq_hz`, `amp`), a callable
+`(t, frac) -> str`, `overlay_extra="best gen 7"` to append a line, or
+`overlay=None` to disable it.
+
+### `render_video` reference
+
+```python
+render_video(result, path, *, camera=None, cameras=None, views=None, prefix=None,
+             plot=None, overlay="freq/amp", resolution=(480, 360), fps=25,
+             max_frames=None, lookat=None, zoom=1.0, excitation=None,
+             overlay_extra=None, save_camera_json=True) -> Path
+```
+
+* `resolution=(width, height)` is **one camera tile**; the output width is
+  `n_views × width` (plus a graph column when `plot=` is set).
+* `max_frames=N` thins the trajectory (first and last frame kept) so short
+  runs still give a sensible video length; `fps` is the playback rate. A run
+  rendered with `max_frames=len(trajectory)` plays back in real time.
+* `render_frames(...)` returns the frames without encoding (notebooks, tests).
+* The classic `OrigamiEnv.render` contract is unchanged.
+
+### Plotting the generation history
+
+`origami_engine_mjx.rendering.plot_history(history)` draws best/mean per
+generation (plus the running global best) from a `GenerationLogger`'s output —
+see [EVALUATION.md](EVALUATION.md#logging-generations-generationlogger).
 
 ## See also
 
-- [EVALUATION.md](EVALUATION.md) — turning a `SimulationResult` into a fitness score
+- [EVALUATION.md](EVALUATION.md) — turning a `SimulationResult` into a fitness score, run and generation logging
+- [TUTORIALS.md](TUTORIALS.md) — camera presets, 4-view videos, graphs and overlays
 - [API_REFERENCE.md](API_REFERENCE.md) — exact signatures of `OrigamiEngine.run`, `generate_xml`, …
 - [ARCHITECTURE.md](ARCHITECTURE.md) — module responsibilities and data flow
 - [BACKENDS.md](BACKENDS.md) — MJX-JAX vs MJX-Warp semantics

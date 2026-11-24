@@ -27,7 +27,9 @@ stable interfaces those libraries consume:
   convention,
 - **environments** for reinforcement learning (Gymnasium and JAX-functional),
 - **population seeding / initialization** helpers (`population`),
-- **plumbing** (seeding, genome/checkpoint I/O, run logging, benchmarking).
+- **plumbing** (seeding, genome/checkpoint I/O, run logging, benchmarking);
+- **generation_log** (per-generation statistics, global best, best-per-generation
+  checkpoints).
 
 It deliberately ships **no** optimization or learning algorithm. Gradient-free
 optimizers (CMA-ES, evolution strategies), gradient-based RL trainers
@@ -67,6 +69,7 @@ function that needs it, with an install hint.
 | `integrations/env.py` | `OrigamiEnv`, `OrigamiVectorEnv` | Gymnasium single + vectorized environments |
 | `integrations/jax_env.py` | `reset`, `step`, `observe`, `build_jax_model`, `make_params`, `EnvState`, `EnvParams` | Pure JAX functions (`jit`/`vmap`/`scan`) |
 | `integrations/plumbing.py` | `make_rng`, `set_global_seed`, `save_genome`, `load_genome`, `save_best`, `load_best`, `RunLogger`, `benchmark` | Reproducibility, I/O, logging, throughput |
+| `integrations/generation_log.py` | `GenerationLogger`, `GenerationSummary`, `load_generation_history` | Per-generation stats, global best, best-of-every-generation checkpoints |
 
 The non-environment names are re-exported from `origami_engine_mjx.integrations`;
 the environment symbols (`OrigamiEnv`, `OrigamiVectorEnv`, `EnvState`,
