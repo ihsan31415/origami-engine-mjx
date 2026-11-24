@@ -82,6 +82,7 @@ evaluator = OrigamiEvaluator(
     error_policy="penalty",
 )
 
+
 def genome_from_z(z):
     return space.repair(space.from_normalized(np.asarray(z, dtype=float)))
 ```
@@ -121,10 +122,10 @@ Prefer the existing adapters before writing glue:
 
 ```python
 from origami_engine_mjx.integrations.adapters import (
-    space_spec,              # JSON-friendly dim/bounds/names for prompts & logging
-    to_nevergrad_function,   # minimization function
-    to_pymoo_problem,        # pymoo Problem, xl/xu set, returns -fitness
-    to_evosax_fitness,       # higher-is-better batch function (negate for tell)
+    space_spec,  # JSON-friendly dim/bounds/names for prompts & logging
+    to_nevergrad_function,  # minimization function
+    to_pymoo_problem,  # pymoo Problem, xl/xu set, returns -fitness
+    to_evosax_fitness,  # higher-is-better batch function (negate for tell)
 )
 ```
 
@@ -146,13 +147,18 @@ free to call before a budget starts.
 
 ```python
 from origami_engine_mjx.integrations import (
-    lhs_population, mixed_population, population_stats,
+    lhs_population,
+    mixed_population,
+    population_stats,
 )
 
 seeds = lhs_population(space, 8, rng=0)
 population = mixed_population(
-    space, 16, seeds=seeds,
-    fractions={"seed": 0.5, "interp": 0.25, "random": 0.25}, rng=0,
+    space,
+    16,
+    seeds=seeds,
+    fractions={"seed": 0.5, "interp": 0.25, "random": 0.25},
+    rng=0,
 )
 print(population.genomes.shape, population.provenance[:3])
 print(population_stats(population.genomes, space))
@@ -170,15 +176,17 @@ Guidance:
 
 ```python
 from origami_engine_mjx.integrations import (
-    RunLogger, load_best, save_best, save_genome,
+    RunLogger,
+    load_best,
+    save_best,
+    save_genome,
 )
 
 with RunLogger("runs/my_run.jsonl") as log:
     for genome, record in zip(genomes, records, strict=True):
-        log.log(record, genome)          # one row per evaluation
+        log.log(record, genome)  # one row per evaluation
 
-path = save_best(best_genome, space, "runs/best.json",
-                 fitness=best_record.fitness, extra={"optimizer": "my_es"})
+path = save_best(best_genome, space, "runs/best.json", fitness=best_record.fitness, extra={"optimizer": "my_es"})
 genome, meta = load_best(path, space)
 save_genome(best_genome, space, "runs/best_pattern.json")
 ```
