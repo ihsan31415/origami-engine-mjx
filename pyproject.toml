@@ -39,8 +39,8 @@ jax = [
     "jax>=0.4",
 ]
 warp = [
-    "mujoco-warp>=3.0",
-    "warp-lang>=1.0",
+    "mujoco-warp>=4.0",
+    "warp-lang>=1.15",
 ]
 opt = [
     "pymoo>=0.6",

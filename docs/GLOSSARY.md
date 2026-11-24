@@ -34,7 +34,7 @@ Terminology used across the documentation and the code.
 | **MJX** | MuJoCo's JAX backend (`mujoco.mjx`) — consumes the same MJCF XML and enables batched/GPU simulation. Two interchangeable backends in one package: MJX-JAX and MJX-Warp. See [BACKENDS.md](BACKENDS.md). |
 | **`origami-render`** | Console script installed by the **legacy** `origami-engine` package (entry point `origami_engine.render_individual:main`). `origami-engine-mjx` ships **no** renderer and no CLI; see [MIGRATION.md](MIGRATION.md#origami-render-and-video-rendering) for the rendering options. |
 | **JSON Schema** | `origami_engine_mjx/schemas/crease_pattern.schema.json` (draft 2020-12) validating crease input files; exposed as `origami_engine_mjx.CREASE_SCHEMA`. |
-| **Warp backend** | MJX-Warp (`mujoco.warp` on NVIDIA Warp, CUDA GPUs only). See [BACKENDS.md](BACKENDS.md) and [COLAB_GPU.md](COLAB_GPU.md) for status and validation steps. |
+| **Warp backend** | MJX-Warp (`mujoco_warp` on NVIDIA Warp, CUDA GPUs only). See [BACKENDS.md](BACKENDS.md) and [COLAB_GPU.md](COLAB_GPU.md) for status and validation steps. |
 | **Search space** | The fixed-topology fold-angle design space searched by an optimizer; `origami_engine_mjx.integrations.SearchSpace`. See [OPTIMIZATION_ES.md](OPTIMIZATION_ES.md). |
 | **Design space** | The configurable generalization `origami_engine_mjx.integrations.DesignSpace`: fold angles, loop-edge angles, crease endpoints (geometry) and crease presence, with presets, selection and constraints. The `angles_only` preset reproduces `SearchSpace` exactly. See [SEARCH_SPACE.md](SEARCH_SPACE.md). |
 | **Variable** | One optimized quantity in a `DesignSpace` (`Variable`): a fold angle (`ANGLE`), an endpoint coordinate (`COORD`) or a crease's presence (`PRESENCE`). |

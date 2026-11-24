@@ -19,7 +19,7 @@ generate_xml(pat, creases)                     (model.py — → MJCF XML string
    ▼   │                                         ▼
 backends.get_backend(name).build_model(xml, info)
    │   jax:  MjModel.from_xml_string → mjx.put_model → mjx.make_data
-   │   warp: MjModel.from_xml_string → mjw.make_model → mjw.make_data
+   │   warp: MjModel.from_xml_string → mjw.put_model → mjw.make_data
    ▼
 backend.run(creases, ...)                      (simulation loop: table vibration, actuator ramp, mjx.step/mjw.step)
    │
@@ -40,7 +40,7 @@ SimulationResult(initial_centroid, final_centroid, ...) → fitness = projection
 | `backend.py` | Lazy import guards for `mujoco`, `mjx_jax`, `mjx_warp`; raises clear errors | No (metadata only) |
 | `backends/base.py` | `SimulationBackend` ABC: `build_model()`, `make_state()`, `run()`, `run_batch()` | Interfaces only |
 | `backends/jax_backend.py` | MJX-JAX: `mjx.put_model`, `mjx.make_data`, `mjx.step` (eager by default); `jit` optional | **Yes** |
-| `backends/warp_backend.py` | MJX-Warp: `mjw.make_model`, `mjw.make_data`, `mjw.step`; CUDA-only | **Yes** |
+| `backends/warp_backend.py` | MJX-Warp: `mjw.put_model`, `mjw.make_data`, `mjw.step`; CUDA-only | **Yes** |
 
 ## Key MJX differences from classic MuJoCo
 
@@ -66,7 +66,7 @@ SimulationResult(initial_centroid, final_centroid, ...) → fitness = projection
 
 4. **Backend model**: `JaxBackend.build_model()` / `WarpBackend.build_model()` (from the backend registry):
    - Parses MJCF with classic `MjModel.from_xml_string()` for name lookups.
-   - Converts to MJX pytree (`mjx.put_model`) or Warp model (`mjw.make_model`).
+   - Converts to MJX pytree (`mjx.put_model`) or Warp model (`mjw.put_model`).
 
 5. **Run loop**: `backend.run()`:
    - Zeroes hinge qpos; computes initial centroid.

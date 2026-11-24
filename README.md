@@ -25,7 +25,7 @@ This project is a dual-backend **MuJoCo MJX** origami folding simulator — a mi
 
 ## What this project does
 - Keeps the same crease → face → MJCF pipeline as the classic engine (`p1`, `p2`, `angle` data in, MuJoCo model out)
-- Runs the simulation on **MJX-JAX** (`mujoco.mjx` on JAX/XLA) or **MJX-Warp** (`mujoco.warp` on NVIDIA Warp) behind a single `OrigamiEngine` facade
+- Runs the simulation on **MJX-JAX** (`mujoco.mjx` on JAX/XLA) or **MJX-Warp** (`mujoco_warp` on NVIDIA Warp) behind a single `OrigamiEngine` facade
 - Supports differentiable simulation and `jax.jit` / `jax.vmap` / `jax.lax.scan` on the JAX backend (CPU, NVIDIA GPU, or TPU)
 - Supports high-throughput batched population evaluation on the Warp backend (NVIDIA CUDA GPU, e.g. Colab T4)
 - Measures the forward displacement of the paper as a fitness signal, for single genomes or whole populations
@@ -39,7 +39,7 @@ This project is a dual-backend **MuJoCo MJX** origami folding simulator — a mi
 | Backend | Flag | Engine | Hardware | Best for |
 |---|---|---|---|---|
 | **MJX-JAX** | `backend="jax"` | `mujoco.mjx` on JAX/XLA | CPU (local dev), NVIDIA GPU, TPU (Colab) | Differentiable simulation, `jax.jit` / `jax.vmap` / `jax.lax.scan`, CPU testing |
-| **MJX-Warp** | `backend="warp"` | `mujoco.warp` on NVIDIA Warp | NVIDIA CUDA GPU only (Colab T4) | High-throughput batched population evaluation |
+| **MJX-Warp** | `backend="warp"` | `mujoco_warp` on NVIDIA Warp | NVIDIA CUDA GPU only (Colab T4) | High-throughput batched population evaluation |
 
 ## Simulation Output
 
@@ -227,7 +227,7 @@ For in-depth information, see the dedicated documentation files:
 - `origami_engine_mjx/evaluation.py` — `evaluate_individual` / `evaluate_population`
 - `origami_engine_mjx/fitness/` — movement + folding (hinge-target) scores and their weighted blend
 - `origami_engine_mjx/integrations/` — ES/RL/AI interfaces (no algorithms): `search_space.py` (`SearchSpace`), `design_space.py` (`DesignSpace`, the configurable angles/geometry/crease-count space), `evaluator.py` (`OrigamiEvaluator`, descriptors), `population.py` (seed loading, interpolation, random / mixed initialization, population I/O), `adapters.py` (pymoo / nevergrad / cma / evosax), `env.py` (`OrigamiEnv`, `OrigamiVectorEnv`), `jax_env.py` (pure-JAX `reset` / `step`), `plumbing.py` (seeding, genome/checkpoint I/O, run logging, benchmark)
-- `origami_engine_mjx/backends/` — `base.py` (`SimulationBackend` ABC), `jax_backend.py` (`put_model` / `make_data` / `mjx.step`, optional jit), `warp_backend.py` (`mjw.make_model` / `make_data` / `mjw.step`, GPU), and a registry with `get_backend(name)`
+- `origami_engine_mjx/backends/` — `base.py` (`SimulationBackend` ABC), `jax_backend.py` (`put_model` / `make_data` / `mjx.step`, optional jit), `warp_backend.py` (`mjw.put_model` / `mjw.make_data` / `mjw.step`, GPU), and a registry with `get_backend(name)`
 - `origami_engine_mjx/schemas/` — JSON schema for crease files
 - `origami_engine_mjx/crease_patterns/` — `reference_miura_4x4.json`
 
