@@ -41,11 +41,19 @@ class SimulationBackend(ABC):
         amp_z: float = 0.0013,
         freq_hz: float = 75.0,
         coll_thick: float | None = None,
+        *,
+        actuated=None,
+        actuation_schedule=None,
     ) -> SimulationResult:
         """Run a single simulation and return the result.
 
         Backends also accept ``record=True`` / ``record_every=int`` to store a
         per-frame trajectory in ``result.extra["trajectory"]``.
+
+        ``actuated`` chooses which hinges are driven (``None`` = all, a bool,
+        or one bool per hinge).  ``actuation_schedule`` is an optional
+        ``f(time_seconds) -> actuated`` evaluated every physics step, so a
+        hinge can be driven for part of the run and free for the rest.
         """
 
     @abstractmethod
@@ -59,12 +67,15 @@ class SimulationBackend(ABC):
         amp_z: float = 0.0013,
         freq_hz: float = 75.0,
         batch_size: int | None = None,
+        actuated=None,
+        actuation_schedule=None,
     ) -> np.ndarray:
         """Run a batch of crease patterns and return fitness scores.
 
         Implementations currently evaluate individuals sequentially, one
         ``run`` call each.  Returns an array of forward-displacement scores,
-        one per individual.
+        one per individual.  ``actuated`` / ``actuation_schedule`` are
+        forwarded to :meth:`run`.
         """
 
     @abstractmethod

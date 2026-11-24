@@ -1,6 +1,6 @@
 # Glossary
 
-> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · **Glossary** · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [Search space](SEARCH_SPACE.md) · [Populations](POPULATIONS.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
+> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [Fitness](FITNESS.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · **Glossary** · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [Search space](SEARCH_SPACE.md) · [Populations](POPULATIONS.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
 
 Terminology used across the documentation and the code.
 
@@ -20,6 +20,7 @@ Terminology used across the documentation and the code.
 | **`MjModel` / `MjData`** | MuJoCo's compiled model and per-simulation state. `SimulationResult.model` is a backend bundle that keeps `classic_model` (an `MjModel`) for name lookups/rendering; `SimulationResult.data` is the backend-native state (`mjx.Data` or Warp data), not an `MjData`. |
 | **`mj_step`** | One physics integration step (timestep 0.001 s, `implicitfast` integrator). MJX-JAX runs `mjx.step`; MJX-Warp runs `mjw.step`. |
 | **Position actuator (`fold_{h}`)** | Drives hinge `crease_{h}` toward its target angle with gains `kp=KP=2.0`, `kv=KV=0.15`, force limit `FORCE_MAX=2.0`. Targets ramp in with a smoothstep over `fold_duration`. |
+| **Actuated / passive hinge** | A hinge is **actuated** when an actuator drives it toward its target (`actuated=None` = every hinge). A **passive** hinge has no drive and is not braked: it moves only as the rest of the paper pushes it, but it still has a target and is still counted by the fold score. See [FITNESS.md](FITNESS.md). |
 | **Stretch joints** | Two slide spring joints per hinge (`stretch_a`, `stretch_n`) that keep panel edges from stretching (`STRETCH_K=5e4`, range ±`STRETCH_MAX=1e-4`). |
 | **Equality connect** | MJCF `<connect>` constraint welding the two endpoints of a loop edge between adjacent faces. |
 | **Vibrating table** | The support table body (`table_x`/`table_z` slide joints) driven kinematically inside each backend's stepping loop: `qpos = amp·sin(2πft)` with matching `qvel` — defaults `amp_z=0.0013 m`, `freq=75 Hz`. There is no separate `drive_table` helper in this package. |

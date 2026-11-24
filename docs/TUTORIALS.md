@@ -1,6 +1,6 @@
 # Tutorials
 
-> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · **Tutorials** · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [Search space](SEARCH_SPACE.md) · [Populations](POPULATIONS.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
+> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · **Tutorials** · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [Fitness](FITNESS.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [Search space](SEARCH_SPACE.md) · [Populations](POPULATIONS.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
 
 Step-by-step recipes that build on each other. Every snippet assumes the package is installed (see [GETTING_STARTED.md](GETTING_STARTED.md)).
 
@@ -201,6 +201,37 @@ data = mujoco.MjData(model)
 ```
 
 The XML structure (bodies, hinges, equality constraints, actuators, table) is documented in [SIMULATION.md](SIMULATION.md).
+
+## Tutorial 9 — Score how well the paper folds (and blend it with movement)
+
+Displacement rewards a pattern that travels; it says nothing about whether the
+paper reached the fold angles the design asks for. `fold_score` measures that
+second question, and `evaluate(..., movement_weight=..., fold_weight=...)` mixes
+the two with any percentage split you like.
+
+```python
+from origami_engine_mjx import OrigamiEngine, fold_report, fold_score, load_default_creases
+
+engine = OrigamiEngine(backend="jax")
+creases = load_default_creases()
+
+# 0.02 s is enough to prove the wiring on a CPU; use 1-2 s on a GPU.
+result = engine.run(creases, duration=0.02)
+
+print(fold_score(result, percent=True))  # 0..100, share of the fold completed
+print(fold_report(result, percent=True))  # same, plus per-hinge errors
+
+# Movement only (the historical score), then a 70 % / 30 % blend.
+print(engine.evaluate(creases, duration=0.02))
+print(engine.evaluate(creases, duration=0.02, movement_weight=70, fold_weight=30))
+```
+
+A hinge you do not drive is still scored — it still had a target — unless you
+explicitly narrow the score with `fold_score(result, actuated=[True, False, ...])`.
+Pass a list to `engine.run(..., actuated=...)` to make only some hinges active,
+or an `actuation_schedule=lambda t: ...` to switch actuation on and off during a
+run. Full details, including the blend formula and the per-hinge metric, are in
+[FITNESS.md](FITNESS.md); a runnable version is `python examples/08_fold_fitness.py`.
 
 ## See also
 

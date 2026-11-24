@@ -1,6 +1,6 @@
 # API Reference
 
-> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · **API Reference** · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [Search space](SEARCH_SPACE.md) · [Populations](POPULATIONS.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
+> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [Fitness](FITNESS.md) · **API Reference** · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [Search space](SEARCH_SPACE.md) · [Populations](POPULATIONS.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
 
 Complete reference for the public API of `origami_engine_mjx` (version `1.0.0`). Sections follow the **Core modules** order in the [README](../README.md#core-modules-brief). Every name below is verified against the installed package.
 
@@ -21,6 +21,14 @@ from origami_engine_mjx import (
     evaluate_individual,
     evaluate_population,
     compute_forward_displacement,
+    fold_score,
+    fold_report,
+    hinge_fold_error,
+    hinge_qpos,
+    blend_scores,
+    blend_fitness,
+    FitnessWeights,
+    FitnessBreakdown,
     plot_pattern,
     load_creases_from_json,
     save_creases_to_json,
@@ -124,11 +132,11 @@ Returned by `OrigamiEngine.run()` / backend `run()`.
 | `model` | `Any` | Backend bundle: `{"mjx_model", "classic_model", "info"}` for JAX or `{"warp_model", "classic_model", "info"}` for Warp. |
 | `data` | `Any` | Final backend state (`mjx.Data` / Warp data). |
 | `pattern` | `Pattern` | Validated pattern that produced the model. |
-| `info` | `dict[str, Any]` | Metadata from `generate_xml` (`hinges`, `targets`, `n_faces`, `n_hinges`, `n_loops`) plus `table_qposadr` (`table_x`/`table_z` positions in `qpos`). |
+| `info` | `dict[str, Any]` | Metadata from `generate_xml` (`hinges`, `targets`, `n_faces`, `n_hinges`, `n_loops`, `actuated`, `actuator_hinges`) plus `table_qposadr` (`table_x`/`table_z` positions in `qpos`), `hinge_qposadr` (hinge positions in `qpos`) and `hinge_qpos` (achieved hinge angles after the run). |
 | `initial_centroid` | `np.ndarray` (shape `(2,)`) | Mean XY of paper geoms before stepping. |
 | `final_centroid` | `np.ndarray` (shape `(2,)`) | Mean XY of paper geoms after stepping. |
 | `backend` | `str` (`"jax"`) | `"jax"` or `"warp"`. |
-| `extra` | `dict[str, Any]` (`{}`) | With `run(record=True)`: `{"trajectory": {"time", "qpos", "qvel", "centroid", "hinge_qposadr"}}` (see [SIMULATION.md](SIMULATION.md#recording-a-trajectory-recordtrue). |
+| `extra` | `dict[str, Any]` (`{}`) | With `run(record=True)`: `{"trajectory": {"time", "qpos", "qvel", "centroid", "hinge_qposadr"}}`, plus `"actuated"` (per-frame mask) when an `actuation_schedule` was used (see [SIMULATION.md](SIMULATION.md#recording-a-trajectory-recordtrue)). |
 
 ### `PopulationResult` — dataclass
 
@@ -136,11 +144,11 @@ Returned by `OrigamiEngine.evaluate_population()`.
 
 | Field | Type (default) | Meaning |
 |---|---|---|
-| `scores` | `np.ndarray` | Forward-displacement score per individual, **always along +x** in the current backends (see the note under `evaluate_population`). |
+| `scores` | `np.ndarray` | Score per individual. Movement-only by default (**always along +x** in the current backends); with `fold_weight > 0`, the movement/fold blend. |
 | `backend` | `str` | `"jax"` or `"warp"`. |
 | `n_individuals` | `int` | `len(population)`. |
 | `duration` | `float` | Simulated duration per individual (s). |
-| `extra` | `dict[str, Any]` (`{}`) | With `run(record=True)`: `{"trajectory": {"time", "qpos", "qvel", "centroid", "hinge_qposadr"}}` (see [SIMULATION.md](SIMULATION.md#recording-a-trajectory-recordtrue). |
+| `extra` | `dict[str, Any]` (`{}`) | `{"movement_scores", "fold_scores"}` from `evaluate_population` (fold scores are `nan` unless blending is on). |
 
 ## `origami_engine_mjx.geometry` — shared
 
@@ -169,7 +177,7 @@ Reconstruct polygonal faces and the spanning-tree hinge graph from a sequence of
 
 ## `origami_engine_mjx.model` — shared
 
-### `generate_xml(pat, creases, name="origami_free", coll_thick=None) -> tuple[str, dict]`
+### `generate_xml(pat, creases, name="origami_free", coll_thick=None, actuated=None) -> tuple[str, dict]`
 
 Build a MuJoCo MJCF XML string from a validated `Pattern`. No MuJoCo runtime is required.
 
@@ -179,16 +187,36 @@ Build a MuJoCo MJCF XML string from a validated `Pattern`. No MuJoCo runtime is 
 - `creases` — normalized crease sequence **in the same order** used to build `pat`. Target angles are looked up by `Pattern.edges[...]["crease"]` index.
 - `name` — value of the `<mujoco model="...">` attribute.
 - `coll_thick` — `None` (default) emits one prism mesh geom per triangle with contact/friction. A float switches to separate visual (non-colliding) and thin collision prisms of that thickness.
+- `actuated` — which hinges get a position actuator: `None` (all, default), a `bool`, or one bool per hinge. Non-actuated hinges are passive joints (still with a target recorded). A wrong-length sequence raises `ValueError("actuated has N entries, expected one per hinge (M).")`.
 
 **Returns:** `(xml, info)` where `info` is:
 
 | Key | Value |
 |---|---|
 | `hinges` | `list[{"name", "face", "edge", "target"}]`; `target = clip(sgn * crease.angle, -MAX_FOLD, MAX_FOLD)`. |
-| `targets` | `np.ndarray` of hinge targets, same order as `hinges`. |
+| `targets` | `np.ndarray` of hinge targets, same order as `hinges` (recorded for every hinge, actuated or not). |
 | `n_faces` | Number of faces. |
 | `n_hinges` | Number of tree (hinge) edges. |
 | `n_loops` | Number of loop edges closed by equality constraints. |
+| `actuated` | `np.ndarray[bool]`, one flag per hinge. |
+| `actuator_hinges` | `np.ndarray[int]`; element *i* of `ctrl` drives `hinges[actuator_hinges[i]]`. |
+
+### `resolve_actuated(actuated, n_hinges) -> np.ndarray`
+
+Normalise `None` / `bool` / sequence into a `bool` array of length `n_hinges`.
+
+### `hinge_fold_error(qpos, info, actuated=None) -> np.ndarray`
+
+Signed `achieved − target` per hinge (radians). `qpos` may be a full MuJoCo
+`qpos` vector or an array of achieved hinge angles (e.g. `info["hinge_qpos"]`).
+
+### `fold_score(qpos, info, actuated=None, percent=False, zero_tolerance_deg=2.0) -> dict`
+
+Tolerance-normalised hinge-target score. `score` is in `[0, 1]` (`0..100` with
+`percent=True`): each hinge goes from `0` (flat) to `1` (within
+`zero_tolerance_deg` of its target), and overshooting is never rewarded. Also
+returns `mean_abs_error_deg`, `max_abs_error_deg`, `rms_error_deg`, `n_hinges`
+and `per_hinge_error_deg`. See [FITNESS.md](FITNESS.md).
 
 The resulting XML is accepted by classic `mujoco.MjModel.from_xml_string`, MJX-JAX `mjx.put_model`, or MJX-Warp `mjw.make_model`. See [SIMULATION.md](SIMULATION.md).
 
@@ -298,7 +326,7 @@ Facade that resolves a backend through the registry and forwards simulation call
 | `.evaluate(...)` | see below | Single score → `float`. |
 | `.evaluate_population(...)` | see below | Population scores → `PopulationResult`. |
 
-#### `OrigamiEngine.run(creases, duration=8.0, fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, coll_thick=None, record=False, record_every=1) -> SimulationResult`
+#### `OrigamiEngine.run(creases, duration=8.0, fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, coll_thick=None, record=False, record_every=1, actuated=None, actuation_schedule=None) -> SimulationResult`
 
 Runs one fold simulation on the selected backend.
 
@@ -308,22 +336,32 @@ Runs one fold simulation on the selected backend.
 - `vibrate`, `amp_x`, `amp_z`, `freq_hz` — table vibration (`qpos = amp·sin(2πft)`); defaults `VIB_AMP_X`, `VIB_AMP_Z`, `VIB_FREQ`.
 - `coll_thick` — forwarded to `generate_xml` (see above).
 - `record`, `record_every` — store every `record_every`-th frame (plus the last) in `result.extra["trajectory"]`; physics and score are unchanged.
+- `actuated` — which hinges are driven: `None` (all, default), a `bool`, or one bool per hinge. Non-driven hinges are free (not braked to zero) and keep their target for scoring.
+- `actuation_schedule` — `f(t_seconds) -> actuated`, evaluated every physics step, so a hinge can be driven for part of the run and passive for the rest. With `record=True` the trajectory stores the per-frame `"actuated"` mask.
 
 **Note:** the facade `run` has **no `jit` parameter**. Only `JaxBackend.run(..., jit=False)` exposes JIT control.
 
-**Raises:** `ValueError` (duration, crease input, invalid pattern), `FloatingPointError("unstable simulation: non-finite joint coordinates produced.")`, `RuntimeError` (backend dependencies unavailable).
+**Raises:** `ValueError` (duration, crease input, invalid pattern, bad `actuated` length), `FloatingPointError("unstable simulation: non-finite joint coordinates produced.")`, `RuntimeError` (backend dependencies unavailable).
 
-#### `OrigamiEngine.evaluate(creases, duration=8.0, trajectory=(1.0, 0.0, 0.0), fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, return_trajectory=False) -> float | tuple[float, dict]`
+#### `OrigamiEngine.evaluate(creases, duration=8.0, trajectory=(1.0, 0.0, 0.0), fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, return_trajectory=False, actuated=None, actuation_schedule=None, fold_weight=0.0, movement_weight=1.0, movement_scale=1.0) -> float | tuple[float, dict]`
 
 Calls `run(...)` (without `coll_thick`) and returns `compute_forward_displacement(result, trajectory)`. With `return_trajectory=True` returns `(score, trajectory)` from a single simulation.
 
-#### `OrigamiEngine.evaluate_population(population, duration=8.0, trajectory=(1.0, 0.0, 0.0), fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, batch_size=None) -> PopulationResult`
+With `fold_weight > 0` the score is the weighted blend of movement and
+hinge-target (folding) fitness — see [FITNESS.md](FITNESS.md). The default
+`fold_weight=0` is exactly the movement score.
+
+#### `OrigamiEngine.evaluate_population(population, duration=8.0, trajectory=(1.0, 0.0, 0.0), fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, batch_size=None, actuated=None, actuation_schedule=None, fold_weight=0.0, movement_weight=1.0, movement_scale=1.0) -> PopulationResult`
 
 Validates `trajectory`: it must be convertable to a float array and have a non-zero norm (`ValueError("trajectory direction must be non-zero.")`; a 2-vector is promoted to 3D). It then calls `backend.run_batch(...)`.
 
 > **Current behavior (verified):** the validated `trajectory` is **not passed to the backends**; both built-in `run_batch` implementations score `final_centroid[0] - initial_centroid[0]` (always +x). `batch_size` is accepted and forwarded but **ignored** by both backends. See [EVALUATION.md](EVALUATION.md#current-behaviour-caveats) and the final report.
 
-Returns a `PopulationResult` with `n_individuals=len(population)` and `extra={}`.
+With `fold_weight > 0` the population is simulated one individual at a time so
+movement can be measured along `trajectory` and blended with the fold score.
+`scores` then hold the blend, and `extra` holds `movement_scores` and
+`fold_scores` (`nan` for failed individuals, which also emit a `RuntimeWarning`).
+Otherwise `extra = {"movement_scores": scores, "fold_scores": [nan...]}`.
 
 ### `compute_forward_displacement(sim_result, trajectory=(1.0, 0.0, 0.0)) -> float`
 
@@ -342,7 +380,7 @@ delta = sim_result.final_centroid - sim_result.initial_centroid
 
 These wrappers construct a fresh `OrigamiEngine` per call and use only the `run`/`evaluate_population` facade (they do not pass `coll_thick` or `jit`).
 
-### `evaluate_individual(creases, duration=8.0, trajectory=(1.0, 0.0, 0.0), fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, backend="jax", return_details=False) -> float | dict`
+### `evaluate_individual(creases, duration=8.0, trajectory=(1.0, 0.0, 0.0), fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, backend="jax", return_details=False, actuated=None, actuation_schedule=None, fold_weight=0.0, movement_weight=1.0, movement_scale=1.0) -> float | dict`
 
 Simulate one pattern and return `compute_forward_displacement(result, trajectory)` as a `float`.
 
@@ -358,11 +396,15 @@ With `return_details=True`, returns exactly these keys:
 | `n_faces` | `int(result.pattern.n_faces)`. |
 | `n_loops` | `len(result.pattern.loop_edges or [])`. |
 
+With `fold_weight > 0`, `displacement` is the blended movement/folding score
+and the dict additionally contains `movement`, `fold`, `combined` and
+`fold_report` (see [FITNESS.md](FITNESS.md)).
+
 There is **no `trajectory` key** and no finite-score check: a non-finite displacement is returned as-is.
 
 **Raises:** `ValueError` (duration ≤ 0, bad crease input, invalid pattern), `FloatingPointError` (unstable simulation), `RuntimeError` (backend unavailable).
 
-### `evaluate_population(individuals, duration=8.0, trajectory=(1.0, 0.0, 0.0), fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, backend="jax", batch_size=None, error_policy="raise") -> list[float]`
+### `evaluate_population(individuals, duration=8.0, trajectory=(1.0, 0.0, 0.0), fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, backend="jax", batch_size=None, error_policy="raise", actuated=None, actuation_schedule=None, fold_weight=0.0, movement_weight=1.0, movement_scale=1.0) -> list[float]`
 
 Calls `OrigamiEngine(backend).evaluate_population(...)` and returns `list(scores)` in input order.
 
@@ -372,6 +414,24 @@ Calls `OrigamiEngine(backend).evaluate_population(...)` and returns `list(scores
 - Any other value: the raw scores are returned unchanged. Because both backends catch per-individual exceptions and store `nan`, this behaves as a "nan" policy.
 
 **Current behavior (verified):** as with the facade, `trajectory` is validated but ignored by the backends; scores are always +x displacement. `batch_size` is forwarded but ignored. There is no `workers` parameter: both backends use sequential per-individual loops. See [EVALUATION.md](EVALUATION.md#current-behaviour-caveats).
+
+## `origami_engine_mjx.fitness` — movement + folding
+
+Additive fitness helpers on a finished `SimulationResult`. Full guide:
+[FITNESS.md](FITNESS.md).
+
+| Name | Signature | Behavior |
+|---|---|---|
+| `fold_score` | `(result, actuated=None, percent=False, zero_tolerance_deg=2.0) -> float` | Hinge-target score in `[0, 1]` (`0..100` with `percent=True`). |
+| `fold_report` | `(result, actuated=None, percent=False, zero_tolerance_deg=2.0) -> dict` | Score plus error statistics, per-hinge errors, and achieved/target angles. |
+| `hinge_fold_error` | `(result, actuated=None) -> np.ndarray` | Signed `achieved − target` per hinge (radians). |
+| `hinge_qpos` | `(result) -> np.ndarray` | Achieved hinge angles from `info["hinge_qpos"]` (or `qpos` fallback). |
+| `FitnessWeights` | `(movement=1.0, fold=0.0, movement_scale=1.0)` | Relative weights; `normalized()` → `(movement_fraction, fold_fraction)`. |
+| `blend_scores` | `(movement, fold, movement_weight=1.0, fold_weight=0.0, movement_scale=1.0) -> float` | Weighted average of an already-computed movement score and a `0..1` fold score. |
+| `blend_fitness` | `(result, trajectory=(1,0,0), weights=None, *, movement_weight=1.0, fold_weight=0.0, movement_scale=1.0, actuated=None, fold_percent=False, zero_tolerance_deg=2.0) -> FitnessBreakdown` | Computes both components and the blend for one result. |
+| `FitnessBreakdown` | dataclass | `combined`, `movement`, `fold`, `weights`, `fold_report`, `movement_fraction`, `fold_fraction`, `as_dict()`. |
+
+`fold_weight=0` (default) always reproduces the movement score.
 
 ## `origami_engine_mjx.backends`
 
@@ -384,8 +444,8 @@ Common interface defined in `origami_engine_mjx/backends/base.py`.
 | `name` | class attribute `str` | `"abstract"` in the base class. |
 | `build_model` | `(xml: str, info: dict) -> Any` | Compile MJCF to a backend-native model/bundle. |
 | `make_state` | `(model: Any) -> Any` | Create the initial backend state. |
-| `run` | `(creases, duration=8.0, fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, coll_thick=None) -> SimulationResult` | Single simulation (JAX subclass adds `jit=False`). |
-| `run_batch` | `(population: list, duration=8.0, fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, batch_size=None) -> np.ndarray` | Fitness array, one entry per individual. Implementations are sequential loops, not parallel. |
+| `run` | `(creases, duration=8.0, fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, coll_thick=None, *, actuated=None, actuation_schedule=None) -> SimulationResult` | Single simulation (JAX subclass adds `jit=False, record=..., record_every=...`). |
+| `run_batch` | `(population: list, duration=8.0, fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, batch_size=None, actuated=None, actuation_schedule=None) -> np.ndarray` | Fitness array, one entry per individual. Implementations are sequential loops, not parallel. |
 | `is_available` | `() -> bool` | Dependencies installed **and** usable. |
 | `device_info` | `() -> str` | Human-readable device description. |
 
@@ -407,7 +467,7 @@ Built-ins are registered at import time as `"jax"` → `JaxBackend` and `"warp"`
 |---|---|
 | `build_model(xml, info)` | `MjModel.from_xml_string(xml)` → `mjx.put_model(...)`; returns `{"mjx_model", "classic_model", "info"}`. |
 | `make_state(bundle)` | `mjx.make_data(bundle["mjx_model"])`. |
-| `run(..., jit=False)` | Normalizes creases, builds pattern/XML/model, steps `round(duration / 0.001)` times with `mjx.step`; `jit=True` wraps the step function in `jax.jit`. Zeroes hinge `qpos`, optionally drives the table, checks finite `qpos`, and returns a `SimulationResult`. |
+| `run(..., jit=False, actuated=None, actuation_schedule=None)` | Normalizes creases, builds pattern/XML/model, steps `round(duration / 0.001)` times with `mjx.step`; `jit=True` wraps the step function in `jax.jit`. Zeroes hinge `qpos`, optionally drives the table, checks finite `qpos`, and returns a `SimulationResult`. Driven hinges get the ramped target; other hinges get a control equal to their current angle, i.e. no torque. |
 | `run_batch(..., batch_size=None)` | Loops over individuals, calls `run(...)`, and scores `delta[0]` (+x). Exceptions become `nan`. **Does not JIT or vmap**, and ignores `batch_size`. |
 | `is_available()` | `jax is not None and mjx is not None`. |
 | `device_info()` | `"jax not installed"` or `"jax backend=<backend>, devices=[...]"`. |
@@ -420,7 +480,7 @@ Built-ins are registered at import time as `"jax"` → `JaxBackend` and `"warp"`
 |---|---|
 | `build_model(xml, info)` | `MjModel.from_xml_string(xml)` → `mjw.make_model(...)`; returns `{"warp_model", "classic_model", "info"}`. |
 | `make_state(bundle)` | `mjw.make_data(bundle["warp_model"])`. |
-| `run(..., coll_thick=None)` | Same normalization/validation as JAX, then a Python loop over `round(duration / 0.001)` `mjw.step` calls with NumPy control writes. No `jit` parameter. |
+| `run(..., coll_thick=None, actuated=None, actuation_schedule=None)` | Same normalization/validation as JAX, then a Python loop over `round(duration / 0.001)` `mjw.step` calls with NumPy control writes. No `jit` parameter. Non-driven hinges get a control equal to their current angle. |
 | `run_batch(..., batch_size=None)` | Sequential per-individual loop calling `run(...)`, scoring `delta[0]`; exceptions become `nan`. **Ignores `batch_size`**; native batched Warp execution is not implemented. |
 | `is_available()` | `False` when `mujoco`/`mujoco.warp` are missing or no CUDA device is present (`warp.get_device().is_cuda`). |
 | `device_info()` | `"mujoco-warp not installed"`, `"warp device=<dev>, cuda=<bool>"`, or a diagnostic error string. |
@@ -538,7 +598,7 @@ offscreen renderer. Needs `MUJOCO_GL=egl` (or `osmesa`); MP4 needs `ffmpeg`
 ## See also
 
 - [GETTING_STARTED.md](GETTING_STARTED.md) — installation (pip / uv / source) and first run
-- [TUTORIALS.md](TUTORIALS.md) — eight step-by-step recipes
+- [TUTORIALS.md](TUTORIALS.md) — nine step-by-step recipes
 - [CREASE_FORMAT.md](CREASE_FORMAT.md) — crease & JSON schema reference
 - [SIMULATION.md](SIMULATION.md) — XML model structure and stepping loop
 - [EVALUATION.md](EVALUATION.md) — fitness functions, population evaluation, current caveats
