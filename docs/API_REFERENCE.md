@@ -480,7 +480,7 @@ Built-ins are registered at import time as `"jax"` → `JaxBackend` and `"warp"`
 |---|---|
 | `build_model(xml, info)` | `MjModel.from_xml_string(xml)` → `mjw.put_model(...)` (`mjw.make_model` on `mujoco-warp` 3.x); returns `{"warp_model", "classic_model", "info"}`. |
 | `make_state(bundle)` | `mjw.make_data(bundle["classic_model"])` — `mujoco-warp` 4.x takes the host `mujoco.MjModel` (3.x took the Warp model). |
-| `run(..., coll_thick=None, actuated=None, actuation_schedule=None)` | Same normalization/validation as JAX, then a Python loop over `round(duration / 0.001)` `mjw.step` calls with NumPy control writes. No `jit` parameter. Non-driven hinges get a control equal to their current angle. |
+| `run(..., coll_thick=None, actuated=None, actuation_schedule=None)` | Same normalization/validation as JAX, then a Python loop over `round(duration / 0.001)` `mjw.step` calls with NumPy control writes (`_to_numpy` / `_set_item`, i.e. `.numpy()` / `.assign()` on the device arrays). No `jit` parameter. Non-driven hinges get a control equal to their current angle. |
 | `run_batch(..., batch_size=None)` | Sequential per-individual loop calling `run(...)`, scoring `delta[0]`; exceptions become `nan`. **Ignores `batch_size`**; native batched Warp execution is not implemented. |
 | `is_available()` | `False` when `mujoco`/`mujoco_warp` are missing or no CUDA device is present (`warp.get_device().is_cuda`). |
 | `device_info()` | `"mujoco-warp not installed"`, `"warp device=<dev>, cuda=<bool>"`, or a diagnostic error string. |
