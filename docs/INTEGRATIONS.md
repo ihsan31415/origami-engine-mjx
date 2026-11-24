@@ -1,6 +1,6 @@
 # Integrations: ES / RL / AI interfaces
 
-> **Documentation map:** [README](../README.md) · [Docs index](README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Backends](BACKENDS.md) · **Integrations** · [Optimization (ES)](OPTIMIZATION_ES.md) · [RL](RL.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Contributing](CONTRIBUTING.md)
+> **Documentation map:** [README](../README.md) · [Docs index](README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Backends](BACKENDS.md) · **Integrations** · [Optimization (ES)](OPTIMIZATION_ES.md) · [Search space](SEARCH_SPACE.md) · [Populations](POPULATIONS.md) · [RL](RL.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Contributing](CONTRIBUTING.md)
 
 This document is the overview of the `origami_engine_mjx.integrations`
 subpackage. It explains what the package is for, the design boundary it keeps,
@@ -8,6 +8,9 @@ and how the pieces fit together. Deeper guides:
 
 - [OPTIMIZATION_ES.md](OPTIMIZATION_ES.md) — search space, evaluator, optimizer
   adapters, quality-diversity descriptors.
+- [SEARCH_SPACE.md](SEARCH_SPACE.md) — the configurable `DesignSpace` (angles,
+  geometry, crease count, constraints).
+- [POPULATIONS.md](POPULATIONS.md) — population seeding / initialization.
 - [RL.md](RL.md) — Gymnasium environments and the pure-JAX `reset`/`step`.
 
 ## What this package is (and is not)
@@ -16,12 +19,14 @@ and how the pieces fit together. Deeper guides:
 search and learning libraries. The `integrations` subpackage defines the small,
 stable interfaces those libraries consume:
 
-- a description of the **design space** (`SearchSpace`),
+- a description of the **design space** (`SearchSpace`, plus the configurable
+  `DesignSpace`),
 - a **black-box objective** (`OrigamiEvaluator`) that maps a genome to a
   simulation score,
 - thin **adapters** that reshape that objective into a library's calling
   convention,
 - **environments** for reinforcement learning (Gymnasium and JAX-functional),
+- **population seeding / initialization** helpers (`population`),
 - **plumbing** (seeding, genome/checkpoint I/O, run logging, benchmarking).
 
 It deliberately ships **no** optimization or learning algorithm. Gradient-free
@@ -55,8 +60,10 @@ function that needs it, with an install hint.
 | Module | Public names | Purpose |
 |---|---|---|
 | `integrations/search_space.py` | `SearchSpace` | Fixed-topology fold-angle genome: encode/decode, bounds, sampling, repair, JSON description |
-| `integrations/evaluator.py` | `OrigamiEvaluator`, `EvalRecord`, `BatchResult`, `DESCRIPTOR_NAMES` | Stateless, picklable objective + behavior descriptors |
-| `integrations/adapters.py` | `to_pymoo_problem`, `to_nevergrad_function`, `to_evosax_fitness` | Reshape the evaluator to a library's API |
+| `integrations/design_space.py` | `DesignSpace`, `DesignSpaceBuilder`, `Variable`, `ANGLE`, `COORD`, `PRESENCE` | Configurable genome (angles, loop-edge angles, endpoints/geometry, crease presence/count) with presets, selection, constraints and a fluent builder |
+| `integrations/population.py` | `Population`, `SeedSet`, `load_seeds`, `interpolate`, `piecewise_path`, `random_barycentric`, `jitter`, `random_population`, `lhs_population`, `sobol_population`, `gaussian_population`, `deduplicate`, `diversity_filter`, `mixed_population`, `save_population`, `load_population`, `export_creases_dir`, `population_stats` | Population seeding / initialization (no algorithm) |
+| `integrations/evaluator.py` | `OrigamiEvaluator`, `EvalRecord`, `BatchResult`, `DESCRIPTOR_NAMES`, `topology_signature` | Stateless, picklable objective + behavior descriptors |
+| `integrations/adapters.py` | `space_spec`, `to_pymoo_problem`, `to_nevergrad_function`, `to_evosax_fitness` | Reshape the evaluator to a library's API; expose the space spec |
 | `integrations/env.py` | `OrigamiEnv`, `OrigamiVectorEnv` | Gymnasium single + vectorized environments |
 | `integrations/jax_env.py` | `reset`, `step`, `observe`, `build_jax_model`, `make_params`, `EnvState`, `EnvParams` | Pure JAX functions (`jit`/`vmap`/`scan`) |
 | `integrations/plumbing.py` | `make_rng`, `set_global_seed`, `save_genome`, `load_genome`, `save_best`, `load_best`, `RunLogger`, `benchmark` | Reproducibility, I/O, logging, throughput |
@@ -70,18 +77,29 @@ are too generic to re-export safely.
 
 ## The design space in one paragraph
 
-For the current geometry backend the crease **topology is fixed**: the segment
+For the default geometry backend the crease **topology is fixed**: the segment
 endpoints (`p1`, `p2`) of every crease are held constant and only the signed
 fold **angles** vary. This is exactly what `build_pattern` and `generate_xml`
 support — the face graph is reconstructed from the segment geometry, so moving
-endpoints can change the number of faces and hinges, which the simulators cannot
-batch over. Only creases that become **spanning-tree hinges** are actuated;
-loop-edge creases become equality `connect` constraints and their angle is
-ignored by the dynamics (verified: changing a loop-crease angle leaves the
-generated XML and the hinge targets byte-identical). With the default
-`active_only=True`, the packaged 4×4 Miura-ori reference pattern therefore has a
-**15-dimensional** genome (24 creases − 9 loop edges). See
-[OPTIMIZATION_ES.md](OPTIMIZATION_ES.md) for the full description.
+endpoints can change the number of faces and hinges. Only creases that become
+**spanning-tree hinges** are actuated; loop-edge creases become equality
+`connect` constraints and their angle is ignored by the dynamics (verified:
+changing a loop-crease angle leaves the generated XML and the hinge targets
+byte-identical). With the default `active_only=True`, the packaged 4×4 Miura-ori
+reference pattern therefore has a **15-dimensional** genome (24 creases − 9 loop
+edges). See [OPTIMIZATION_ES.md](OPTIMIZATION_ES.md) for the full description.
+
+That fixed-topology `SearchSpace` remains the **default**. A
+[`DesignSpace`](SEARCH_SPACE.md) generalizes it: the same 15-actuated-angle
+preset reproduces `SearchSpace` exactly, but you can also vary the inert
+loop-edge angles, crease **endpoints** (geometry) and crease **presence**
+(variable crease count), select variables by group/index/mask/predicate, apply
+equality/symmetry constraints that reduce the dimension, and describe it as a
+dict/JSON. Because the built-in backends already loop per individual, a
+variable-topology batch is scored exactly like one-by-one evaluation: the
+evaluator groups genomes by `topology_signature` and reports the per-individual
+path (`batched`/`bucketed`/`single`/`invalid`) on `EvalRecord.path` /
+`BatchResult.paths`.
 
 ## Minimal end-to-end example
 
@@ -99,11 +117,15 @@ batch = evaluator.evaluate_batch(space.sample(0, size=8))
 print(batch.fitness, batch.best_index())
 ```
 
-From there, hand `evaluator.to_minimizer()` to `nevergrad`/`cma`, or
-`to_pymoo_problem(evaluator)` to `pymoo`, or wrap the environment in
-`gym.make`-style training. See the two deeper guides and
+The search space is configurable — see [SEARCH_SPACE.md](SEARCH_SPACE.md) for the
+`DesignSpace` presets/builder and [POPULATIONS.md](POPULATIONS.md) for seeding an
+initial population. From there, hand `evaluator.to_minimizer()` to
+`nevergrad`/`cma`, or `to_pymoo_problem(evaluator)` to `pymoo`, or wrap the
+environment in `gym.make`-style training. See the deeper guides and
 [`examples/04_optimize_es.py`](../examples/04_optimize_es.py) /
-[`examples/05_rl_env.py`](../examples/05_rl_env.py).
+[`examples/05_rl_env.py`](../examples/05_rl_env.py) /
+[`examples/06_design_space.py`](../examples/06_design_space.py) /
+[`examples/07_populations.py`](../examples/07_populations.py).
 
 ## Determinism and reproducibility
 
@@ -156,6 +178,8 @@ exactly one `OrigamiEngine` run.
 ## See also
 
 - [OPTIMIZATION_ES.md](OPTIMIZATION_ES.md) — the optimization guide
+- [SEARCH_SPACE.md](SEARCH_SPACE.md) — the configurable `DesignSpace`
+- [POPULATIONS.md](POPULATIONS.md) — population seeding / initialization
 - [RL.md](RL.md) — the reinforcement-learning guide
 - [EVALUATION.md](EVALUATION.md) — the underlying fitness signal
 - [ARCHITECTURE.md](ARCHITECTURE.md) — where `integrations/` sits in the package

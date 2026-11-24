@@ -1,6 +1,6 @@
 # Evaluation & Fitness
 
-> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · **Evaluation** · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
+> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · **Evaluation** · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [Search space](SEARCH_SPACE.md) · [Populations](POPULATIONS.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
 
 This document describes the fitness signal used throughout origami-engine-mjx and how to evaluate patterns and populations of patterns. All statements below were verified against the implementation (`engine.py`, `evaluation.py`, `backends/jax_backend.py`, `backends/warp_backend.py`).
 
@@ -146,10 +146,25 @@ scores = evaluate_population(
 )
 ```
 
+## Configurable spaces and per-individual paths
+
+The `OrigamiEvaluator` in `origami_engine_mjx.integrations` accepts a
+`SearchSpace` **or** a [`DesignSpace`](SEARCH_SPACE.md) with no API change. When
+the space can change the crease **topology** between individuals (geometry or
+presence variables), the fast batch path decodes every genome, groups them by
+`topology_signature` and sends one group per backend call. Because both built-in
+backends already loop per individual (and rebuild the model inside that loop),
+each group is scored **exactly like one-by-one evaluation**; the grouping is
+bookkeeping only and currently gives **no throughput benefit**. Each
+result records which path scored it, on `EvalRecord.path` / `BatchResult.paths`:
+`batched` (a same-topology batch), `bucketed` (a topology group of more than
+one), `single` (one individual), `invalid` (decode failed) or `cached`.
+
 ## See also
 
 - [SIMULATION.md](SIMULATION.md) — what `engine.run` does with these parameters
 - [OPTIMIZATION_ES.md](OPTIMIZATION_ES.md) — using the fitness signal as a black-box objective
+- [SEARCH_SPACE.md](SEARCH_SPACE.md) — configurable `DesignSpace` targets
 - [TUTORIALS.md](TUTORIALS.md) — Tutorials 3 and 6
 - [API_REFERENCE.md](API_REFERENCE.md) — full signatures and raise conditions
 - [`examples/01_evaluate_cpu_jax.py`](../examples/01_evaluate_cpu_jax.py) — minimal single + population run on CPU

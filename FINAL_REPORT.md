@@ -1,22 +1,28 @@
-# Final Report — v1.0.0 ES / RL / AI Integration Interfaces
+# Final Report — configurable search space & population seeding
 
 ## Overview
 
 | Item | Value |
 |---|---|
-| Branch | `feat/optimization-integrations-v1` (from `chore/remove-legacy-classic-engine` @ `b891a5c`) |
-| Commits on branch | see `git log --oneline chore/remove-legacy-classic-engine..HEAD` (local only — **not** pushed, tagged, or published) |
-| Review cycles run | 8 (the agreed maximum); cycles 1–7 fixed interface/code issues, cycle 8 fixed pre-existing doc/CI issues |
-| Head | branch tip on `feat/optimization-integrations-v1` (see `git log -1`; this report is the last commit) |
-| Version | `1.0.0` (`pyproject.toml` + `origami_engine_mjx.__version__`) |
+| Branch | `feat/optimization-integrations-v1` |
+| Base | `db93f01` (previous branch tip; this report's work is **local only** — not pushed, tagged or published) |
+| Commits added | 8 (`5047469` A–D implementation + `cycle 1`…`cycle 6` review cycles + this report) |
+| Review cycles run | 6 (two consecutive clean full passes required; see §7) |
+| Version | `1.0.0` (`pyproject.toml` + `origami_engine_mjx.__version__`, unchanged) |
 
-The branch adds the **environment / evaluator substrate** for external search and
-learning tools. It ships **no** optimization or learning algorithm: every
-algorithm lives in a third-party package that consumes the small, stable
-interfaces added here. All additions are under
-`origami_engine_mjx/integrations/` and use only the existing public
-`OrigamiEngine` facade, so they work with both backends and change no existing
-public API or signature.
+This work **extends** the existing ES/RL/AI integration substrate (added on the
+same branch by `db93f01` and earlier). It makes the search space
+**dynamic/configurable** and adds a **population seeding/initialization** module.
+It ships **no** optimizer: no mutation, crossover, selection or search algorithm.
+Everything is additive — the existing public API and the default genome are
+unchanged.
+
+The single most important invariant: **the default behaviour is byte-for-byte
+identical.** `DesignSpace.from_default_pattern()` is the 15-actuated-angle,
+fixed-topology genome that `SearchSpace.from_default_pattern()` already exposed
+(same vectors, bounds, parameter names and decoded creases), and
+`to_search_space()` reproduces the `SearchSpace` exactly. `SearchSpace` remains
+the default everywhere.
 
 ---
 
@@ -24,142 +30,119 @@ public API or signature.
 
 | Module | Public surface |
 |---|---|
-| `integrations/search_space.py` | `SearchSpace` — fixed-topology fold-angle genome: `from_creases` / `from_default_pattern`, `encode` / `decode`, `sample` / `sample_normalized`, `clip` / `repair` / `is_valid`, `to_normalized` / `from_normalized`, `bounds`, `to_dict`. Default 4×4 Miura = 15 actuated variables (9 loop creases are inert; `active_only=False` exposes all 24). |
-| `integrations/evaluator.py` | `OrigamiEvaluator` — stateless, picklable objective (single + batch); `EvalRecord`, `BatchResult`, `DESCRIPTOR_NAMES` (quality-diversity behavior descriptors); `to_minimizer` / `to_maximizer`; `error_policy="penalty"\|"raise"`; optional memoization. |
-| `integrations/adapters.py` | `to_pymoo_problem`, `to_nevergrad_function`, `to_evosax_fitness` — thin shape adapters; third-party libs imported lazily. |
-| `integrations/env.py` | `OrigamiEnv` (Gymnasium) + `OrigamiVectorEnv`; `EnvParams` / `EnvState`; action modes; per-hinge fold-sign handling. |
-| `integrations/jax_env.py` | Pure-JAX `build_jax_model` / `make_params` / `reset` / `step` / `observe` for `jit` / `vmap` / `scan`. |
-| `integrations/plumbing.py` | `make_rng`, `set_global_seed`, `save_genome` / `load_genome`, `save_best` / `load_best`, `RunLogger` (JSONL/CSV), `benchmark`. |
-| `integrations/__init__.py` | Eager exports of the NumPy-only surface + lazy `__getattr__` for the JAX/Gymnasium symbols. |
+| `integrations/design_space.py` (new, ~1200 lines) | `DesignSpace`, `DesignSpaceBuilder`, `Variable`, `ANGLE` / `COORD` / `PRESENCE`. Configurable genome over fold angles, loop-edge angles, crease endpoints (geometry) and crease presence (variable count); presets `angles_only`, `angles_and_geometry`, `geometry_only`, `everything`; selection by group/index/slice/list/bool-mask/name/predicate; per-variable bounds; normalized `[-1, 1]` view; equality/symmetry constraints that **reduce** the dimension and are re-expanded by `decode`; `is_valid` / `validity_reason` / `repair` / `rejection_sample`; `presence_mask` / `presence_count` / `count_ok`; `describe()`; dict/JSON + pickle round-trip; `to_search_space()`. |
+| `integrations/population.py` (new, ~660 lines) | `Population`, `SeedSet`, `load_seeds`, `interpolate`, `piecewise_path`, `random_barycentric`, `jitter`, `random_population`, `lhs_population`, `sobol_population`, `gaussian_population`, `deduplicate`, `diversity_filter`, `mixed_population`, `save_population`, `load_population`, `export_creases_dir`, `population_stats`. Seeding/initialization only. |
+| `integrations/evaluator.py` (extended) | Accepts `SearchSpace` **or** `DesignSpace`; adds `topology_signature`, per-individual `EvalRecord.path` / `BatchResult.paths`, and topology bucketing in the fast batch path. |
+| `integrations/env.py` (extended) | `OrigamiEnv` / `OrigamiVectorEnv` accept `SearchSpace` or an angle-only, unconstrained `DesignSpace` via `_as_rl_space`; anything else raises a clear `ValueError`. |
+| `integrations/adapters.py` (extended) | `space_spec(space_or_evaluator)` exposes dim / lower / upper / names / groups / presence indices / n_creases. |
+| `integrations/__init__.py` (extended) | Re-exports the new names; existing exports unchanged. |
+| `tests_mjx/test_design_space.py`, `tests_mjx/test_population.py` (new) | Fast unit tests plus one `slow`/`requires_jax` real-engine equality test. |
+| `examples/06_design_space.py`, `examples/07_populations.py` (new) | Runnable, CPU-safe examples. |
 
-### Deliberate deferrals (not implemented, by design)
+`DesignSpace` selection/semantics: variable kinds `ANGLE` / `COORD` /
+`PRESENCE`; coordinate variables are one per unique vertex (`geometry_mode="vertex"`)
+or one per crease endpoint (`"segment"`); a presence value below
+`presence_threshold=0.5` drops the crease (list view from `decode`, mask from
+`presence_mask`); constraints remove dependent variables from the genome.
 
-- **No algorithms** — no CMA-ES, no GA, no policy-gradient, no QD/MAP-Elites implementation. Only the interfaces above.
-- **No cross-topology batching / `vmap`** — individuals with different crease patterns have different MJX models, so `evaluate_batch` loops; `jax_env` is vmappable only when the model is shared.
-- **Structured descriptors require the slow path** — `evaluate_population`'s fast path returns scores only; per-individual `engine.run` is needed for trajectory-derived descriptors (documented in `OPTIMIZATION_ES.md`).
-- **No Warp-specific env implementation** — the env is backend-agnostic; the Warp path is documented but not runtime-verified here (no GPU).
+### Deliberate deferrals (not implemented)
 
----
-
-## 2. Documentation added / enriched
-
-**New files**
-
-- `docs/README.md` — documentation index.
-- `docs/INTEGRATIONS.md` — overview, install extras, the no-algorithms boundary, module map.
-- `docs/OPTIMIZATION_ES.md` — search space, evaluator, optimizer adapters, QD descriptors, error contract, throughput benchmark.
-- `docs/RL.md` — Gymnasium + pure-JAX environments, observation/action spaces, `ctrl_perm`/`ctrl_sign` reindexing, reward, termination/info keys.
-- `examples/04_optimize_es.py`, `examples/05_rl_env.py` — runnable, optional-dependency-guarded examples.
-
-**Enriched (existing docs)**
-
-- A "Documentation map" nav line linking the three new docs added to every existing doc.
-- `README.md` — **+9/−0 only**: one "What this project does" bullet, three entries in the "Documentation" list, one "Core modules" bullet, and one short "Optimization & RL interfaces" section. The Examples table is untouched (see §6).
-- `docs/ARCHITECTURE.md` — `integrations/` row added to the module-responsibility table.
-- `docs/CONTRIBUTING.md` — `[opt]`/`[rl]` extras, the `requires_jax` skip guard, `make docs-check`.
-- `docs/TROUBLESHOOTING.md` — integration error strings and skip-guard behaviour.
-- `docs/API_REFERENCE.md`, `docs/GETTING_STARTED.md`, `docs/GLOSSARY.md`, `docs/EVALUATION.md`, `docs/TUTORIALS.md`, `docs/CREASE_FORMAT.md`, `docs/SIMULATION.md`, `docs/BACKENDS.md`, `docs/MIGRATION.md`, `docs/COLAB_GPU.md`, `examples/README.md` — map links plus targeted corrections.
-- `CHANGELOG.md` — repo-scoped `[1.0.0]` entry.
-- `scripts/check_docs_links.py` (new) + `make docs-check` target; now also run in CI.
-
-No existing doc or code file was deleted or restructured; changes are additive or corrections of factually wrong statements (listed in §3/§4).
+- **No optimizer / operators** — no mutation, crossover or selection. See §5.
+- **No cross-topology batched `vmap`** — see §3.
+- **Optional Task-B items not built** (listed for a decision in §5):
+  parameterized pattern generators, structure-aware distance/alignment for
+  variable-length genomes. (A warm-start-from-best loader already exists as
+  `plumbing.save_best` / `load_best`.)
 
 ---
 
-## 3. Fixes made during the review cycles
+## 2. Default behaviour is byte-for-byte unchanged
 
-Cycles 1–7 (interface / code correctness):
+- `DesignSpace.from_default_pattern()` → dim `15`, `n_creases == 24`,
+  `n_slots == 24`.
+- `DesignSpace.from_default_pattern().to_search_space() == SearchSpace.from_default_pattern()`
+  (compared via `SearchSpace.__eq__`), and `lower`, `upper`, `parameter_names`
+  and the base vector are element-wise identical.
+- Pinned by `test_angles_only_reproduces_search_space`,
+  `test_to_search_space_round_trip_is_identical` and
+  `test_from_search_space_round_trip`.
+- `OrigamiEnv` / `OrigamiVectorEnv` still default to the fixed-topology angle
+  space; RL remains angle-only by design (a geometry/presence/constrained
+  `DesignSpace` is rejected with a clear error).
+
+---
+
+## 3. Measured batching (honest)
+
+Both built-in backends loop **per individual** inside `run_batch` (each
+iteration rebuilds the MJX model; `batch_size` is ignored), and
+`OrigamiEngine.evaluate_population` ignores `trajectory` (it always scores +x).
+So grouping genomes by `topology_signature` is **bookkeeping only** and gives
+**no throughput benefit** today. Measured on this CPU host (JAX backend, tiny
+2-crease pattern, `duration=0.003`, `N=3`; model build dominates):
+
+| Mode | Batch wall | One-by-one wall | Paths |
+|---|---|---|---|
+| angles-only (one topology) | 30.46 s (first call, incl. JIT compile) | 14.02 s | `batched` |
+| geometry (mixed topology) | 14.40 s | 14.84 s | `single` |
+
+The mixed-topology batch is the meaningful comparison (compile is warm):
+**4.80 s/ind batched vs 4.95 s/ind one-by-one** — statistically the same, i.e.
+no speed-up. The evaluator still reports *which* path scored each individual
+(`batched` / `bucketed` / `single` / `invalid` / `cached`) so a caller can see
+this.
+
+**Equality is verified with the real engine**, not just a stub:
+`test_real_engine_mixed_topology_scores_match_one_by_one` builds a geometry
+space over a tiny pattern, perturbs one vertex (a second topology), and asserts
+the batch fitness equals the one-by-one fitness for all three rows, with paths
+`['bucketed', 'bucketed', 'single']` and all statuses `ok`.
+
+---
+
+## 4. Fixes made during the review cycles
 
 | Commit | Fix |
 |---|---|
-| `6fb9c81` | Initial integration interfaces |
-| `602b983` | Docs + examples |
-| `384beb3` | Correct `space.sample(0)` doc call; CSV descriptor inference |
-| `8e71e9f` | Release prep: version `1.0.0` |
-| `4eca9a2` | Accurate docs; `render()` error message; env tidy-up |
-| `24f6d0d` | Document `benchmark` `batch_size` return key |
-| `6b85505` | Align RL action order with the search-space order |
-| `a571fc7` | `make_params` requires the hinge→crease map |
-| `441d7e5` | `close()` renderer; guard `benchmark(n<1)` |
-| `44a733d` | Document info-key differences on terminal step vs reset |
-| `190433a` | Apply per-hinge fold sign in RL envs |
-| `73bd585` | Consistent error handling; `BatchResult.errors`/`cached`; warm-up not counted as a cache hit |
+| `148e405` cycle 1 | `rejection_sample(size=0)` returns an empty `(0, dim)`; `everything()` docstring corrected (`presence=None` adds **no** presence variables); `DesignSpace` rejects a `dependent` source that is itself dependent; `diversity_filter` returns genome-space rows while measuring distances in the normalized view; `deduplicate` gained a `space` argument (normalized duplicate detection, genome rows returned); `population_stats` reports `n=0` for empty input. |
+| `a304565` cycle 2 | Documented that interpolation does **not** check geometric validity; use `is_valid` / `rejection_sample` / `mixed_population(valid_only=True)`. |
+| `0510336` cycle 3 | Stated honestly that topology bucketing gives **no** throughput benefit today (`EVALUATION.md`, `SEARCH_SPACE.md`). |
+| `c74d14d` cycle 4 | Fixed a real bug: `piecewise_path(closed=True)` sampled the path parameter in `[0, m]` instead of `[0, m-1]`, extrapolating one segment past the final vertex (e.g. seeds `[0, 1, 2]` gave range `[-2, 2]` instead of `[0, 2]`). Added regression test. Also made `jitter(normalized=True)` without a `space` raise `ValueError` (it previously added raw-unit noise silently). |
+| `17f03ba` cycle 5 | Made `count_mode="range"` meaningful: added `presence_count()` / `count_ok()` and made `rejection_sample` honour both geometry validity and the crease-count bounds. |
+| `0ec401d` cycle 6 | Added the real-engine mixed-topology equality test (the fast suite only had a stub-engine test). |
 
-Cycle 8 (final — pre-existing docs/CI defects surfaced by review):
+An independent read-only probe (`/tmp/opencode/review_probe.py`,
+`review_probe2.py`) — 15 checks covering default byte-identity, selection
+errors, geometry-invalid never crashing, closed-path hull containment,
+`jitter` guard and count bounds — passes.
 
-| Commit | Fix |
+---
+
+## 5. Issues that need your decision (not built)
+
+| Item | Why left as-is |
 |---|---|
-| `adaf8ab` | Guard JAX import in `test_rl_env.py` (optional-deps CI) |
-| `a9ccab5` | List `integrations/` in `ARCHITECTURE.md` module table |
-| `08e0c0b` | `API_REFERENCE.md`: TUTORIALS has **eight** recipes, not nine |
-| `2dab4ff` | `EVALUATION.md`: GA-loop snippet had `scores = ([],)` (a tuple) → `scores = []` |
-| `373dfd2` | `requires_jax` skip guard for the 7 JAX-backed tests; run docs link check in CI |
-| `224537d` | Correct the `[all]` description (now includes `[opt]`/`[rl]`); fix example "Key APIs" label |
-| `f7bd296` | `TROUBLESHOOTING.md`: integration tests also use the `requires_jax` guard |
-| `43b43c2` | Clarify `RunLogger` docstring (append within session / truncate on first open) |
-
-The most consequential cycle-8 fix was **CI**: the `lint-and-test` job installs
-only `.[dev]` (no `jax`/`mujoco-mjx`), yet seven tests in
-`test_integrations.py` built a JAX-backed evaluator and errored instead of
-skipping. They now skip via a `find_spec`-based `requires_jax` guard, matching
-the existing `importorskip` convention; reproduced locally by blocking `jax`
-(`33 passed, 13 skipped`) and confirmed green with `jax` present
-(`55 passed, 10 skipped`).
+| **Mutation / crossover / selection operators** | The agreed boundary is *interfaces only*; the library ships no algorithm. Building operators would cross that line. |
+| Parameterized pattern generators | Optional Task-B item; not clearly in scope and no clean, verified implementation was attempted. |
+| Structure-aware distance / alignment for variable-length genomes | Optional; the shipped `diversity_filter` measures distance in the normalized padded view, which is the documented behaviour. |
+| `pyproject.toml` classifier `Development Status :: 3 - Alpha` while version is `1.0.0` | Pre-existing; changing release status is a maintainer policy decision. |
+| `README.md` says "nine step-by-step recipes"; `TUTORIALS.md` has eight | Pre-existing; `README.md` is protected under the agreed constraints. |
+| `SearchSpace.__eq__` ignores `parameter_names` | Pre-existing deliberate behaviour. |
+| `[opt]` extra lists `nevergrad`/`cma`/`evosax`, which the package never imports | Pre-existing convenience installs. |
+| Module docstrings sit after `from __future__ import annotations`, so `__doc__` is `None` | Pre-existing repo-wide convention. |
 
 ---
 
-## 4. Issues not fixed (require a user decision)
+## 6. Unverifiable items (GPU / Warp only)
 
-| Issue | Location | Why left as-is |
-|---|---|---|
-| Classifier says `Development Status :: 3 - Alpha` while the version is `1.0.0` | `pyproject.toml:17` | Changing the release status is a policy decision for the maintainer. |
-| README says "nine step-by-step recipes"; `TUTORIALS.md` has **eight** | `README.md:163` | `README.md` is protected under the agreed constraints (only the listed edits are allowed). The same sentence in `docs/API_REFERENCE.md` **was** fixed (`08e0c0b`). |
-| `SearchSpace.__eq__` ignores `parameter_names` | `integrations/search_space.py:214` | Deliberate: two spaces with identical topology/bounds but different labels compare equal. Changing it is a behavioural decision. |
-| CSV `RunLogger` uses `extrasaction="ignore"` | `integrations/plumbing.py:175` | Descriptors absent from the first record are silently dropped; erroring instead would be stricter but could break valid runs. |
-| Cache key uses `row.tobytes()` vs `np.ascontiguousarray(X[i]).tobytes()` | `integrations/evaluator.py` | Differs only for non-contiguous input; unlikely to matter but worth a decision. |
-| `status="invalid"` is effectively unreachable through the public API | `integrations/evaluator.py` | Kept for forward compatibility. |
-| `[opt]` lists `nevergrad`/`cma`/`evosax`, which the library never imports | `pyproject.toml:45` | Convenience installs for the *user's* optimizer; `pymoo` is the only one imported (lazily). |
-| Module docstrings sit after `from __future__ import annotations`, so `__doc__` is `None` | repo-wide | Existing convention; fixing it touches many files and is out of scope. |
-| `integrations.__all__` omits the 7 lazily-exported env symbols | `integrations/__init__.py:55` | Deliberate: listing them would make `from … import *` eagerly import `env`/`jax_env` (and their optional deps), defeating the lazy re-export. |
-| `README.md` Examples table lists only 4 of the 6 scripts (04/05 missing) | `README.md` Examples table | The README Examples table is explicitly protected ("do not touch"). The two new scripts are documented in `examples/README.md` and the new docs instead. |
-| `README.md` Examples table | `README.md` | Untouched by design (protected). |
-
----
-
-## 5. Unverifiable items (GPU / Warp only)
-
-- **MJX-Warp backend execution** — `warp` / `mujoco-warp` are not installed and no CUDA GPU is present (`available_backends()` returns `["jax"]` here). The Warp path is documented, not runtime-verified.
-- **`OrigamiEnv` / `jax_env` on Warp** — the env is written to work with both backends via `OrigamiEngine`, but only the JAX path has been executed.
-- **GPU throughput numbers** (evals/s, steps/s, memory) — require a Colab T4 or similar; `examples/colab_gpu_validation.py` is the intended harness.
-- **`jax.jit` / `jax.vmap` / `jax.grad` on the Warp backend** — documented as not applicable (Warp state is not a JAX pytree).
-
-All GPU-only claims in the docs are marked as unverified.
-
----
-
-## 6. README diff (protected file)
-
-`git diff chore/remove-legacy-classic-engine -- README.md` → **+9 / −0** (added lines shown; surrounding context elided):
-
-```diff
-@@ -29,6 +29,7 @@
-+- Exposes ES / RL / AI **integration interfaces** (a fixed-topology search space, a stateless evaluator, Gymnasium and JAX-functional environments, optimizer adapters) without shipping any optimization or learning algorithm
-
-@@ -171,6 +172,9 @@
-+- **[INTEGRATIONS.md](docs/INTEGRATIONS.md)** — ES/RL/AI integration interfaces overview
-+- **[OPTIMIZATION_ES.md](docs/OPTIMIZATION_ES.md)** — search space, evaluator, optimizer adapters, QD descriptors
-+- **[RL.md](docs/RL.md)** — Gymnasium and JAX-functional reinforcement-learning environments
-
-@@ -196,6 +200,7 @@
-+- `origami_engine_mjx/integrations/` — ES/RL/AI interfaces (no algorithms): `search_space.py` (`SearchSpace`), `evaluator.py` (`OrigamiEvaluator`, descriptors), `adapters.py` (pymoo / nevergrad / cma / evosax), `env.py` (`OrigamiEnv`, `OrigamiVectorEnv`), `jax_env.py` (pure-JAX `reset` / `step`), `plumbing.py` (seeding, genome/checkpoint I/O, run logging, benchmark)
-
-@@ -217,6 +222,10 @@
-+## Optimization & RL interfaces
-+
-+The library is the **environment / evaluator substrate** for external search and learning tools — it ships **no** optimization or learning algorithm. `origami_engine_mjx.integrations` provides a fixed-topology `SearchSpace` (15 actuated fold angles for the default Miura pattern), a stateless picklable `OrigamiEvaluator` with behavior descriptors for quality-diversity, a Gymnasium `OrigamiEnv` plus pure-JAX `reset`/`step` (jittable / vmappable), thin adapters for `pymoo` / `nevergrad` / `cma` / `evosax`, and plumbing (seeding, genome/checkpoint I/O, run logging, throughput benchmark). See [INTEGRATIONS.md](docs/INTEGRATIONS.md), [OPTIMIZATION_ES.md](docs/OPTIMIZATION_ES.md) and [RL.md](docs/RL.md).
-```
-
-The Examples table and all other README content are unchanged.
+- **MJX-Warp backend execution and throughput** — `warp` / `mujoco-warp` are not
+  installed and there is no CUDA GPU here (`available_backends()` returns
+  `["jax"]`). All Warp claims remain documented, not runtime-verified.
+- **`OrigamiEnv` / `jax_env` on Warp**, **GPU evals/s**, and
+  **`jit` / `vmap` / `grad` on the Warp backend** — same reason.
+- The batching numbers in §3 are **CPU/JAX** only; the mixed-topology
+  no-benefit conclusion follows from the backend loop structure and should be
+  re-measured on a GPU before any batching claim there.
 
 ---
 
@@ -168,85 +151,63 @@ The Examples table and all other README content are unchanged.
 | Gate | Result |
 |---|---|
 | `ruff check .` | All checks passed |
-| `ruff format --check .` | 56 files already formatted |
-| `mypy origami_engine_mjx --config-file pyproject.toml` | Success: no issues in 22 source files |
-| `python scripts/check_docs_links.py` | OK: 21 Markdown files, no broken links |
-| `pytest -q` (fast suite) | 55 passed, 10 skipped |
-| `pytest -q` with `jax` blocked (CI simulation) | 33 passed, 13 skipped, 0 failed |
-| `pytest -q -m slow` (MJX simulation) | 10 passed, 55 deselected (~107 s) |
-| Working tree | clean |
+| `ruff format --check .` | all files formatted |
+| `mypy origami_engine_mjx` | Success: no issues in 24 source files |
+| `python scripts/check_docs_links.py` (`make docs-check`) | OK: 23 Markdown files, no broken links |
+| `pytest tests_mjx -q` (fast) | 114 passed, 10 skipped |
+| `pytest tests_mjx -m slow -q` (MJX sims) | 11 passed, 114 deselected (~150 s) |
+| `python examples/06_design_space.py` / `07_populations.py` | exit 0 |
+| Independent probes | all checks pass |
 
-The slow MJX suite was run once during the cycles; the cycle-8 fixes touched
-only test skip guards, docs, and CI, none of which affect the simulation path.
-
-A final independent read-only review of the complete branch (interfaces, docs,
-examples, tests, CI, packaging) found **no high-severity defects**; the only
-medium finding — the protected README Examples table still lists 4 of the 6
-scripts — is recorded in §4 as a decision for the maintainer.
+Two consecutive clean full passes (lint + format + mypy + docs links + fast suite
++ slow suite + examples + probes) were run on the frozen final tree.
 
 ---
 
-## 8. Review / push / tag / release commands
+## 8. README diff (protected file)
 
-**Review the branch (no side effects):**
+`git diff db93f01..HEAD -- README.md` → **+5 / −2**:
 
-```bash
-git log --oneline --reverse chore/remove-legacy-classic-engine..feat/optimization-integrations-v1
-git diff chore/remove-legacy-classic-engine -- README.md          # expect +9/-0
-git diff chore/remove-legacy-classic-engine --stat
-ruff check . && ruff format --check .
-mypy origami_engine_mjx --config-file pyproject.toml
-python scripts/check_docs_links.py
-pytest -q
-pytest -q -m slow        # optional; ~2 min on CPU
+```diff
+@@ -30,6 +30,7 @@
++- Offers a **configurable design space** (`DesignSpace`: fold angles, crease endpoints/geometry, crease count) and **population seeding** helpers (seed files, interpolation, random and mixed initialization) on top of the default fixed-topology search space
+
+@@ -174,6 +175,8 @@
++- **[SEARCH_SPACE.md](docs/SEARCH_SPACE.md)** — the configurable `DesignSpace` (angles, geometry, crease count)
++- **[POPULATIONS.md](docs/POPULATIONS.md)** — population seeding / initialization
+
+@@ -200,7 +203,7 @@   (Core modules (brief): integrations line)
+-... `search_space.py` (`SearchSpace`), `evaluator.py` ...
++... `search_space.py` (`SearchSpace`), `design_space.py` (`DesignSpace`, the configurable angles/geometry/crease-count space), `evaluator.py` ..., `population.py` (seed loading, interpolation, random / mixed initialization, population I/O), ...
+
+@@ -224,7 +227,7 @@   (Optimization & RL interfaces paragraph)
++ ... The search space is configurable — `DesignSpace` can also vary loop-edge angles, crease endpoints (geometry) and crease count, with presets, selection and equality/symmetry constraints — and initial populations can be seeded from crease JSON files or generated by interpolation, random and mixed sampling. See ... [SEARCH_SPACE.md], [POPULATIONS.md] and [RL.md].
 ```
 
-**Push the branch:**
+All other README content (including the Examples table) is unchanged.
+
+---
+
+## 9. Review / push commands
+
+**Review the branch (read-only):**
+
+```bash
+git log --oneline --reverse db93f01..feat/optimization-integrations-v1
+git diff --stat db93f01..feat/optimization-integrations-v1
+git diff db93f01..feat/optimization-integrations-v1 -- README.md   # expect +5/-2
+ruff check . && ruff format --check .
+mypy origami_engine_mjx
+python scripts/check_docs_links.py
+pytest tests_mjx -q
+pytest tests_mjx -m slow -q        # optional; ~2.5 min on CPU
+python examples/06_design_space.py && python examples/07_populations.py
+```
+
+**Push (only when you decide to):**
 
 ```bash
 git push -u origin feat/optimization-integrations-v1
 ```
 
-**Tag the release** (no `v1.0.0` tag exists yet; `v0.1.0` and `v0.3.0` do):
-
-```bash
-git tag -a v1.0.0 -m "origami-engine-mjx 1.0.0"
-git push origin v1.0.0
-```
-
-**Build and release:**
-
-```bash
-python -m build
-twine check dist/*
-# PyPI publish is automated by .github/workflows/ci.yml on a push to main
-# (PyPI Trusted Publishing). Merging this branch to main triggers it.
-gh release create v1.0.0 --notes-from-tag dist/*
-```
-
----
-
-## 9. Commit list (local; the commit containing this report is last)
-
-```
-6fb9c81 feat(integrations): add ES/RL/AI integration interfaces
-602b983 docs(integrations): document ES/RL interfaces and add examples
-384beb3 fix(integrations): correct doc sample() call and CSV descriptor inference
-8e71e9f release: prepare v1.0.0
-4eca9a2 fix(integrations): accurate docs and render() error, tidy env
-24f6d0d docs(integrations): document benchmark batch_size return key
-6b85505 fix(integrations): align RL action order with the search space
-a571fc7 fix(integrations): require the hinge->crease map in make_params
-441d7e5 fix(integrations): close renderer, guard benchmark(n<1)
-44a733d docs(rl): info keys differ on terminal step and reset
-190433a fix(integrations): apply per-hinge fold sign in RL envs
-73bd585 fix(integrations): consistent error handling and benchmark warm-up
-adaf8ab test(integrations): guard JAX import in RL env tests for optional-deps CI
-a9ccab5 docs(architecture): list integrations/ in the module responsibilities table
-08e0c0b docs(api-reference): TUTORIALS.md has eight recipes, not nine
-2dab4ff docs(evaluation): fix GA-loop snippet (scores = [] not tuple)
-373dfd2 test(integrations): skip JAX-backed tests without the [jax] extra
-224537d docs: correct [all] extra description and example key-API label
-f7bd296 docs(troubleshooting): integration tests also use the requires_jax guard
-43b43c2 docs(integrations): clarify RunLogger append/truncate wording
-```
+No tag or release was created; publishing remains your call.

@@ -1,6 +1,6 @@
 # Crease Pattern & JSON Input Format
 
-> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · **Crease Format** · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
+> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · **Crease Format** · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [Search space](SEARCH_SPACE.md) · [Populations](POPULATIONS.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
 
 This document is the complete reference for the crease input format: the `Crease` type, the JSON Schema, accepted input shapes, validation rules, and how a crease list becomes a validated `Pattern`.
 
@@ -151,9 +151,12 @@ The returned `Pattern` dataclass:
 - The engine enforces topology (tiling, area, connectivity), **not** rigid-foldability theorems (Kawasaki/Maekawa). For physically foldable patterns, keep the usual origami design rules in mind (e.g. alternating mountain/valley at interior vertices), but note the simulator's hinge targets are what actually drive the fold.
 - Angles are targets for position actuators, clipped to `±MAX_FOLD = 0.98π` ≈ 176.4°.
 
+Crease **endpoints** and **presence** can also be search variables (not just angles): [`DesignSpace`](SEARCH_SPACE.md) can move `p1`/`p2`, drop creases (a variable crease count) and expose the whole crease list as a JSON-serializable spec. It keeps the same validation pipeline — every candidate is re-run through `build_pattern`, and a genome that no longer tiles the sheet is reported invalid rather than crashing (see [SEARCH_SPACE.md](SEARCH_SPACE.md)). The plain `Crease`/JSON format documented above is unchanged.
+
 ## See also
 
 - [TUTORIALS.md](TUTORIALS.md) — Tutorial 4 (JSON round-trip) and Tutorial 5 (custom pattern)
 - [SIMULATION.md](SIMULATION.md) — how `Pattern` becomes MuJoCo XML
 - [API_REFERENCE.md](API_REFERENCE.md) — `Crease`, `Pattern`, `normalize_creases`, `load_creases_from_json`, `save_creases_to_json`, `CREASE_SCHEMA`, `build_pattern`
+- [SEARCH_SPACE.md](SEARCH_SPACE.md) — treating crease angles, endpoints and presence as a search space
 - [GLOSSARY.md](GLOSSARY.md) — mountain/valley, loop edge, spanning tree, …

@@ -1,6 +1,6 @@
 # Examples
 
-> **Documentation map:** [README](../README.md) · [GETTING_STARTED.md](../docs/GETTING_STARTED.md) · [TUTORIALS.md](../docs/TUTORIALS.md) · [API_REFERENCE.md](../docs/API_REFERENCE.md) · [EVALUATION.md](../docs/EVALUATION.md) · [CREASE_FORMAT.md](../docs/CREASE_FORMAT.md) · [SIMULATION.md](../docs/SIMULATION.md) · [TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md) · [GLOSSARY.md](../docs/GLOSSARY.md) · [INTEGRATIONS.md](../docs/INTEGRATIONS.md) · [OPTIMIZATION_ES.md](../docs/OPTIMIZATION_ES.md) · [RL.md](../docs/RL.md) · [CONTRIBUTING.md](../docs/CONTRIBUTING.md)
+> **Documentation map:** [README](../README.md) · [GETTING_STARTED.md](../docs/GETTING_STARTED.md) · [TUTORIALS.md](../docs/TUTORIALS.md) · [API_REFERENCE.md](../docs/API_REFERENCE.md) · [EVALUATION.md](../docs/EVALUATION.md) · [CREASE_FORMAT.md](../docs/CREASE_FORMAT.md) · [SIMULATION.md](../docs/SIMULATION.md) · [TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md) · [GLOSSARY.md](../docs/GLOSSARY.md) · [INTEGRATIONS.md](../docs/INTEGRATIONS.md) · [OPTIMIZATION_ES.md](../docs/OPTIMIZATION_ES.md) · [SEARCH_SPACE.md](../docs/SEARCH_SPACE.md) · [POPULATIONS.md](../docs/POPULATIONS.md) · [RL.md](../docs/RL.md) · [CONTRIBUTING.md](../docs/CONTRIBUTING.md)
 
 Runnable scripts showing how to use the `origami_engine_mjx` library. Each script inserts the repository root onto `sys.path`, so they run directly from a source checkout (with the package installed editable, `pip install -e ".[dev]"` — see [GETTING_STARTED.md](../docs/GETTING_STARTED.md), Method 3):
 
@@ -22,6 +22,8 @@ make examples
 | [`03_batch_population.py`](03_batch_population.py) | Batched population evaluation with configurable batch size | `OrigamiEngine, evaluate_population` | One score per individual |
 | [`04_optimize_es.py`](04_optimize_es.py) | Black-box optimization over the fold-angle search space with `nevergrad` (falls back to random search) | `SearchSpace, OrigamiEvaluator, to_nevergrad_function` | Best genome, objective, raw displacement |
 | [`05_rl_env.py`](05_rl_env.py) | Gymnasium `OrigamiEnv` rollout + pure-JAX `reset`/`step` | `OrigamiEnv, jax_env.reset/step` | Per-step rewards and episode return |
+| [`06_design_space.py`](06_design_space.py) | Configurable `DesignSpace`: presets, selection, constraints, presence, JSON, per-individual eval path | `DesignSpace, DesignSpaceBuilder, topology_signature, OrigamiEvaluator` | Dimensions, selections, paths |
+| [`07_populations.py`](07_populations.py) | Population seeding: seeds, interpolation, random, mixed, dedup, diversity, I/O, stats | `load_seeds, mixed_population, diversity_filter, save_population, population_stats` | Population shapes and provenance |
 | [`colab_gpu_validation.py`](colab_gpu_validation.py) | End-to-end MJX-Warp validation + benchmark on a Colab T4 | `OrigamiEngine, evaluate_population` | Timing and throughput table |
 
 ## How each maps to the tutorials
@@ -33,6 +35,8 @@ make examples
 | 03 | Tutorial 6 — population evaluation | [EVALUATION.md](../docs/EVALUATION.md) |
 | 04 | — (optimization) | [OPTIMIZATION_ES.md](../docs/OPTIMIZATION_ES.md) |
 | 05 | — (reinforcement learning) | [RL.md](../docs/RL.md) |
+| 06 | — (search-space configuration) | [SEARCH_SPACE.md](../docs/SEARCH_SPACE.md) |
+| 07 | — (population seeding) | [POPULATIONS.md](../docs/POPULATIONS.md) |
 | colab | Tutorial 2 — GPU quick start | [COLAB_GPU.md](../docs/COLAB_GPU.md) |
 
 ## Related entry points
@@ -51,5 +55,7 @@ make examples
 - [API_REFERENCE.md](../docs/API_REFERENCE.md) — full API signatures
 - [EVALUATION.md](../docs/EVALUATION.md) — fitness functions and population evaluation
 - [OPTIMIZATION_ES.md](../docs/OPTIMIZATION_ES.md) — black-box optimization over the search space
+- [SEARCH_SPACE.md](../docs/SEARCH_SPACE.md) — the configurable `DesignSpace`
+- [POPULATIONS.md](../docs/POPULATIONS.md) — population seeding and initialization
 - [RL.md](../docs/RL.md) — Gymnasium and JAX-functional environments
 - [CREASE_FORMAT.md](../docs/CREASE_FORMAT.md) — crease & JSON format reference

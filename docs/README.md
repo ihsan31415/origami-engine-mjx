@@ -1,6 +1,6 @@
 # Documentation index
 
-> **Documentation map:** **Docs index** · [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Backends](BACKENDS.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [RL](RL.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Contributing](CONTRIBUTING.md)
+> **Documentation map:** **Docs index** · [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Backends](BACKENDS.md) · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [Search space](SEARCH_SPACE.md) · [Populations](POPULATIONS.md) · [RL](RL.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Glossary](GLOSSARY.md) · [Contributing](CONTRIBUTING.md)
 
 This directory holds the long-form documentation for `origami-engine-mjx`. The
 [top-level README](../README.md) is the entry point; everything below expands a
@@ -29,6 +29,8 @@ part of it.
 |---|---|
 | [INTEGRATIONS.md](INTEGRATIONS.md) | The `origami_engine_mjx.integrations` package at a glance |
 | [OPTIMIZATION_ES.md](OPTIMIZATION_ES.md) | Search space, evaluator, optimizer adapters, QD descriptors |
+| [SEARCH_SPACE.md](SEARCH_SPACE.md) | Configurable `DesignSpace`: angles, geometry, crease count, constraints |
+| [POPULATIONS.md](POPULATIONS.md) | Population seeding: seeds, interpolation, random, mixed, I/O |
 | [RL.md](RL.md) | Gymnasium `OrigamiEnv`, the vector env, and pure-JAX `reset`/`step` |
 
 ## Reference & operations
@@ -54,6 +56,8 @@ these docs:
 | [`03_batch_population.py`](../examples/03_batch_population.py) | [EVALUATION.md](EVALUATION.md) |
 | [`04_optimize_es.py`](../examples/04_optimize_es.py) | [OPTIMIZATION_ES.md](OPTIMIZATION_ES.md) |
 | [`05_rl_env.py`](../examples/05_rl_env.py) | [RL.md](RL.md) |
+| [`06_design_space.py`](../examples/06_design_space.py) | [SEARCH_SPACE.md](SEARCH_SPACE.md) |
+| [`07_populations.py`](../examples/07_populations.py) | [POPULATIONS.md](POPULATIONS.md) |
 | [`colab_gpu_validation.py`](../examples/colab_gpu_validation.py) | [COLAB_GPU.md](COLAB_GPU.md) |
 
 ## See also

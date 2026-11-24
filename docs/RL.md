@@ -52,6 +52,14 @@ for _ in range(env.max_steps):
 
 `dim = space.dim` is the number of actuated hinges (15 for the default pattern).
 
+RL needs **one fixed topology**: every environment shares the same model and only
+its state differs. `OrigamiEnv` / `OrigamiVectorEnv` therefore accept a
+`SearchSpace` **or** an angle-only, unconstrained [`DesignSpace`](SEARCH_SPACE.md);
+a design space that varies geometry, crease count or constraints is rejected with
+a clear `ValueError` (via `DesignSpace.to_search_space()`). Angle-only RL is
+therefore unaffected by the configurable space — for geometry / variable-count
+search, use the evaluator instead ([SEARCH_SPACE.md](SEARCH_SPACE.md)).
+
 Action entry `j` (and observation angle `j`) corresponds to the same crease as
 genome entry `j`, i.e. `space.active_indices[j]`. The MJCF model emits its
 actuators in a depth-first traversal, which is generally **not** sorted crease
@@ -194,6 +202,7 @@ too generic to re-export safely.
 
 - [INTEGRATIONS.md](INTEGRATIONS.md) — package overview and boundaries
 - [OPTIMIZATION_ES.md](OPTIMIZATION_ES.md) — the black-box optimization guide
+- [SEARCH_SPACE.md](SEARCH_SPACE.md) — why RL stays angle-only
 - [SIMULATION.md](SIMULATION.md) — the stepping loop the environments wrap
 - [BACKENDS.md](BACKENDS.md) — why only the JAX backend is wrapped
 - [`examples/05_rl_env.py`](../examples/05_rl_env.py) — runnable demo

@@ -44,6 +44,7 @@ import numpy as np
 from ..constants import VIB_AMP_X, VIB_AMP_Z, VIB_FREQ
 from ..engine import OrigamiEngine, compute_forward_displacement
 from ..types import BackendName
+from .design_space import DesignSpace
 from .search_space import SearchSpace
 
 __all__ = [
@@ -51,7 +52,27 @@ __all__ = [
     "BatchResult",
     "EvalRecord",
     "OrigamiEvaluator",
+    "topology_signature",
 ]
+
+
+def topology_signature(creases, ndigits: int = 9) -> tuple:
+    """Return a hashable signature of a crease pattern's *geometry*.
+
+    Two crease lists with the same signature produce the same MJX model (the
+    face graph depends only on the endpoints, not the fold angles), so the
+    evaluator buckets genomes with this key before calling the backend.
+    """
+    return tuple(
+        (
+            round(float(c.p1[0]), ndigits),
+            round(float(c.p1[1]), ndigits),
+            round(float(c.p2[0]), ndigits),
+            round(float(c.p2[1]), ndigits),
+        )
+        for c in creases
+    )
+
 
 #: Behavior descriptors returned alongside fitness in the structured path.
 #: They are computed from the final simulation state and let quality-diversity
@@ -92,6 +113,12 @@ class EvalRecord:
         fitness-only fast path.
     cached : bool
         Whether the record was served from the evaluator cache.
+    path : str
+        Which evaluation path produced the record: ``"batched"`` (one backend
+        call for a same-topology batch), ``"bucketed"`` (a topology bucket of
+        more than one individual), ``"single"`` (one individual / one backend
+        call), ``"invalid"`` (decode failed) or ``"cached"`` (served from the
+        evaluator cache).
     """
 
     fitness: float
@@ -101,6 +128,7 @@ class EvalRecord:
     time: float = 0.0
     descriptors: dict[str, float] = field(default_factory=dict)
     cached: bool = False
+    path: str = ""
 
 
 @dataclass
@@ -122,6 +150,8 @@ class BatchResult:
     """Per-genome error text (``""`` when ``status == "ok"``)."""
     cached: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=bool))
     """Per-genome cache-hit flags."""
+    paths: list[str] = field(default_factory=list)
+    """Per-genome evaluation path (see :attr:`EvalRecord.path`)."""
 
     @property
     def n(self) -> int:
@@ -150,6 +180,7 @@ class BatchResult:
                     time=float(self.time[i]),
                     descriptors={k: float(v[i]) for k, v in self.descriptors.items()},
                     cached=bool(self.cached[i]) if i < len(self.cached) else False,
+                    path=self.paths[i] if i < len(self.paths) else "",
                 )
             )
         return out
@@ -160,8 +191,13 @@ class OrigamiEvaluator:
 
     Parameters
     ----------
-    space : SearchSpace
-        Genome specification; defines the fixed topology and angle bounds.
+    space : SearchSpace | DesignSpace
+        Genome specification; defines the topology (fixed or variable) and the
+        per-variable bounds.  A
+        :class:`~origami_engine_mjx.integrations.design_space.DesignSpace` lets
+        the topology change between individuals (endpoints and crease presence
+        may vary); the evaluator buckets by
+        :func:`topology_signature` and reports the path per individual.
     backend : {"jax", "warp"}
         Simulation backend used for every evaluation.
     duration, fold_duration, vibrate, amp_x, amp_z, freq_hz :
@@ -198,7 +234,7 @@ class OrigamiEvaluator:
 
     def __init__(
         self,
-        space: SearchSpace,
+        space: SearchSpace | DesignSpace,
         backend: BackendName = "jax",
         duration: float = 8.0,
         fold_duration: float = 3.0,
@@ -312,8 +348,8 @@ class OrigamiEvaluator:
             descriptors=descriptors,
         )
 
-    def _failed_record(self, status: str, error: str, dt: float = 0.0) -> EvalRecord:
-        return EvalRecord(fitness=float(self.penalty), raw=float("nan"), status=status, error=error, time=dt)
+    def _failed_record(self, status: str, error: str, dt: float = 0.0, path: str = "") -> EvalRecord:
+        return EvalRecord(fitness=float(self.penalty), raw=float("nan"), status=status, error=error, time=dt, path=path)
 
     def _evaluate_row(self, engine: OrigamiEngine, row: np.ndarray) -> EvalRecord:
         """Structured single-genome evaluation (used for descriptors)."""
@@ -323,14 +359,16 @@ class OrigamiEvaluator:
         except Exception as exc:
             if self.error_policy == "raise":
                 raise
-            return self._failed_record("invalid", str(exc))
+            return self._failed_record("invalid", str(exc), path="invalid")
         try:
             raw, descriptors = self._simulate(engine, creases)
         except Exception as exc:
             if self.error_policy == "raise":
                 raise
-            return self._failed_record("error", f"{type(exc).__name__}: {exc}", time.perf_counter() - t0)
-        return self._make_record(raw, descriptors, time.perf_counter() - t0)
+            return self._failed_record("error", f"{type(exc).__name__}: {exc}", time.perf_counter() - t0, path="single")
+        rec = self._make_record(raw, descriptors, time.perf_counter() - t0)
+        rec.path = "single"
+        return rec
 
     # ------------------------------------------------------------------
     # Public evaluation API
@@ -353,6 +391,7 @@ class OrigamiEvaluator:
                 time=0.0,
                 descriptors=dict(cached.descriptors),
                 cached=True,
+                path="cached",
             )
         engine = self._engine()
         rec = self._evaluate_row(engine, row)
@@ -408,6 +447,7 @@ class OrigamiEvaluator:
                     time=0.0,
                     descriptors=dict(cached.descriptors),
                     cached=True,
+                    path="cached",
                 )
             else:
                 todo.append(i)
@@ -432,6 +472,7 @@ class OrigamiEvaluator:
         errors = [r.error for r in final]
         cached_flags = np.asarray([r.cached for r in final], dtype=bool)
         times = np.asarray([r.time for r in final], dtype=float)
+        paths = [r.path for r in final]
         descriptors: dict[str, np.ndarray] = {}
         if details:
             for name in DESCRIPTOR_NAMES:
@@ -446,49 +487,64 @@ class OrigamiEvaluator:
             n_cache_hits=self.n_cache_hits,
             errors=errors,
             cached=cached_flags,
+            paths=paths,
         )
 
     def _fast_batch(self, engine: OrigamiEngine, X: np.ndarray, todo: list[int], records: list) -> None:
-        """Fitness-only path: decode all, then one ``evaluate_population`` call."""
-        decoded: list[Any] = []
-        valid: list[int] = []
+        """Fitness-only path: decode all, bucket by topology, one call per bucket.
+
+        The crease *topology* (endpoints) determines the MJX model, so genomes
+        are grouped by :func:`topology_signature` and each group is sent to the
+        backend in a single :meth:`OrigamiEngine.evaluate_population` call.  With
+        a fixed-topology space there is one group, i.e. the historical "batched"
+        fast path; a geometry/crease-count space yields several "bucketed"
+        groups.  Per-individual paths are recorded on the records.
+        """
+        buckets: dict[tuple, list[int]] = {}
+        decoded: dict[int, Any] = {}
         for i in todo:
             try:
-                decoded.append(self.space.decode(X[i]))
-                valid.append(i)
+                creases = self.space.decode(X[i])
             except Exception as exc:
                 if self.error_policy == "raise":
                     raise
-                records[i] = self._failed_record("invalid", str(exc))
-        if not valid:
+                records[i] = self._failed_record("invalid", str(exc), path="invalid")
+                continue
+            decoded[i] = creases
+            buckets.setdefault(topology_signature(creases), []).append(i)
+        if not buckets:
             return
-        pop = [decoded[k] for k in range(len(valid))]
-        try:
-            scores = engine.evaluate_population(
-                pop,
-                duration=self.duration,
-                trajectory=self.trajectory,
-                fold_duration=self.fold_duration,
-                vibrate=self.vibrate,
-                amp_x=self.amp_x,
-                amp_z=self.amp_z,
-                freq_hz=self.freq_hz,
-                batch_size=self.batch_size,
-            ).scores
-        except Exception as exc:
-            # Keep the fast path consistent with the structured path: a
-            # population-level failure becomes a penalty record per genome.
-            if self.error_policy == "raise":
-                raise
-            for i in valid:
-                records[i] = self._failed_record("error", f"{type(exc).__name__}: {exc}")
+        multi = len(buckets) > 1
+        for members in buckets.values():
+            pop = [decoded[i] for i in members]
+            path = "single" if len(members) == 1 else ("bucketed" if multi else "batched")
+            try:
+                scores = engine.evaluate_population(
+                    pop,
+                    duration=self.duration,
+                    trajectory=self.trajectory,
+                    fold_duration=self.fold_duration,
+                    vibrate=self.vibrate,
+                    amp_x=self.amp_x,
+                    amp_z=self.amp_z,
+                    freq_hz=self.freq_hz,
+                    batch_size=self.batch_size,
+                ).scores
+            except Exception as exc:
+                # Keep the fast path consistent with the structured path: a
+                # population-level failure becomes a penalty record per genome.
+                if self.error_policy == "raise":
+                    raise
+                for i in members:
+                    records[i] = self._failed_record("error", f"{type(exc).__name__}: {exc}", path=path)
+                    self.n_evaluations += 1
+                continue
+            share = 0.0  # per-genome time is not separable on this path
+            for k, i in enumerate(members):
+                rec = self._make_record(float(scores[k]), {}, share)
+                rec.path = path
+                records[i] = rec
                 self.n_evaluations += 1
-            return
-        share = 0.0  # per-genome time is not separable on this path
-        for k, i in enumerate(valid):
-            score = float(scores[k])
-            records[i] = self._make_record(score, {}, share)
-            self.n_evaluations += 1
 
     # ------------------------------------------------------------------
     # Convenience callables

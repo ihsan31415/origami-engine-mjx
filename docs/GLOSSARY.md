@@ -1,6 +1,6 @@
 # Glossary
 
-> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · **Glossary** · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
+> **Documentation map:** [README](../README.md) · [Getting Started](GETTING_STARTED.md) · [Tutorials](TUTORIALS.md) · [Crease Format](CREASE_FORMAT.md) · [Simulation](SIMULATION.md) · [Evaluation](EVALUATION.md) · [API Reference](API_REFERENCE.md) · [Architecture](ARCHITECTURE.md) · [Troubleshooting](TROUBLESHOOTING.md) · **Glossary** · [Integrations](INTEGRATIONS.md) · [Optimization (ES)](OPTIMIZATION_ES.md) · [Search space](SEARCH_SPACE.md) · [Populations](POPULATIONS.md) · [RL](RL.md) · [Contributing](CONTRIBUTING.md)
 
 Terminology used across the documentation and the code.
 
@@ -35,7 +35,12 @@ Terminology used across the documentation and the code.
 | **JSON Schema** | `origami_engine_mjx/schemas/crease_pattern.schema.json` (draft 2020-12) validating crease input files; exposed as `origami_engine_mjx.CREASE_SCHEMA`. |
 | **Warp backend** | MJX-Warp (`mujoco.warp` on NVIDIA Warp, CUDA GPUs only). See [BACKENDS.md](BACKENDS.md) and [COLAB_GPU.md](COLAB_GPU.md) for status and validation steps. |
 | **Search space** | The fixed-topology fold-angle design space searched by an optimizer; `origami_engine_mjx.integrations.SearchSpace`. See [OPTIMIZATION_ES.md](OPTIMIZATION_ES.md). |
-| **Genome** | One point in the search space: the vector of actuated fold angles. Decoded to a full `list[Crease]` by `SearchSpace.decode`. |
+| **Design space** | The configurable generalization `origami_engine_mjx.integrations.DesignSpace`: fold angles, loop-edge angles, crease endpoints (geometry) and crease presence, with presets, selection and constraints. The `angles_only` preset reproduces `SearchSpace` exactly. See [SEARCH_SPACE.md](SEARCH_SPACE.md). |
+| **Variable** | One optimized quantity in a `DesignSpace` (`Variable`): a fold angle (`ANGLE`), an endpoint coordinate (`COORD`) or a crease's presence (`PRESENCE`). |
+| **Presence / crease count** | A `PRESENCE` variable that keeps or drops a crease (value `< presence_threshold` drops it), giving a variable crease count. See [SEARCH_SPACE.md](SEARCH_SPACE.md). |
+| **Genome** | One point in the search/design space: the vector of *free* variables (the actuated fold angles by default). Decoded to a full `list[Crease]` by `decode`. |
+| **Population seeding** | Producing the *initial* population for an optimizer (seed files, interpolation, random, mixed) — no mutation, crossover or selection. See [POPULATIONS.md](POPULATIONS.md). |
+| **Seed** | A known crease pattern (or its genome) used as a starting point or interpolation endpoint when seeding a population. |
 | **Descriptor** | A behavior characterization computed from the final simulation state (e.g. displacement direction), used by quality-diversity methods. See `DESCRIPTOR_NAMES`. |
 | **Episode** | One RL rollout: `reset()` followed by repeated `step()` until `terminated`/`truncated`. See [RL.md](RL.md). |
 | **Evaluator** | `OrigamiEvaluator`, the stateless, picklable black-box objective mapping a genome to a fitness. Ships no algorithm. |

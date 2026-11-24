@@ -12,6 +12,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `integrations/design_space.py` — `DesignSpace` / `DesignSpaceBuilder`, a
+  **configurable** search space (fold angles, loop-edge angles, crease
+  endpoints/geometry, crease presence/count) with the presets `angles_only`,
+  `angles_and_geometry`, `geometry_only` and `everything`, selection by
+  group/index/slice/list/bool-mask/name/predicate, equality/symmetry constraints
+  that reduce the genome dimension, a normalized `[-1, 1]` view, per-variable
+  bounds, validity/repair/rejection sampling (with crease-count bounds honoured
+  via `presence_count` / `count_ok`), introspection and dict/JSON
+  round-tripping. The default `angles_only` preset reproduces `SearchSpace`
+  exactly (same vectors, bounds and decoded creases).
+- `integrations/population.py` — population **seeding / initialization only**
+  (no optimizer): seed-file loading (`load_seeds`), interpolation
+  (`interpolate`, `piecewise_path`, `random_barycentric`), random
+  initialization (`random_population`, `lhs_population`, `sobol_population`,
+  `gaussian_population`), `jitter`, `deduplicate`, `diversity_filter`,
+  `mixed_population` with provenance, population I/O (`save_population`,
+  `load_population`, `export_creases_dir`) and `population_stats`.
+- `OrigamiEvaluator` accepts a `DesignSpace` with no API change: when the
+  topology varies between individuals it buckets by `topology_signature` and
+  reports the per-individual scoring path (`EvalRecord.path` /
+  `BatchResult.paths`: `batched` / `bucketed` / `single` / `invalid` / `cached`).
+- `space_spec` adapter helper; `DesignSpace`, `DesignSpaceBuilder`, `Variable`,
+  `ANGLE`/`COORD`/`PRESENCE`, `topology_signature` and the population helpers are
+  exported from `origami_engine_mjx.integrations`.
+- Documentation `docs/SEARCH_SPACE.md` and `docs/POPULATIONS.md`; examples
+  `examples/06_design_space.py` and `examples/07_populations.py`; tests
+  `tests_mjx/test_design_space.py` and `tests_mjx/test_population.py`.
+
+### Changed
+- `OrigamiEnv` / `OrigamiVectorEnv` accept a `SearchSpace` **or** an angle-only,
+  unconstrained `DesignSpace`; a geometry/presence/constrained design space is
+  rejected with a clear error (RL needs one shared, fixed topology).
+
 ## [1.0.0] - 2026-11-24
 
 ### Added

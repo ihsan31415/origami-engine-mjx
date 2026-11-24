@@ -7,6 +7,15 @@ environment; :class:`OrigamiVectorEnv` steps many copies in parallel with
 ``jax.vmap`` on the MJX-JAX backend.  Neither implements a learning algorithm
 — they are the environment an RL library trains against.
 
+RL needs **one shared model and an angle-only genome**, so these environments
+accept a fixed-topology :class:`~origami_engine_mjx.integrations.search_space.SearchSpace`
+or an *angle-only* :class:`~origami_engine_mjx.integrations.design_space.DesignSpace`
+(converted automatically).  A design space that also varies geometry or crease
+presence/count is rejected with a clear ``ValueError``: a changing topology
+cannot be ``vmap``-ed over one model.  Use the
+:class:`~origami_engine_mjx.integrations.evaluator.OrigamiEvaluator` for those
+spaces instead (see ``docs/RL.md`` and ``docs/SEARCH_SPACE.md``).
+
 Requires the ``[rl]`` extra (Gymnasium) and the ``[jax]`` extra (MJX-JAX).
 """
 
@@ -17,6 +26,7 @@ from typing import Any, ClassVar
 import numpy as np
 
 from ..constants import MAX_FOLD, VIB_AMP_X, VIB_AMP_Z, VIB_FREQ
+from .design_space import DesignSpace
 from .jax_env import _IMPORT_ERROR as _JAX_IMPORT_ERROR
 from .jax_env import _centroid, build_jax_model, make_params
 from .search_space import SearchSpace
@@ -57,6 +67,20 @@ def _require_jax() -> None:
         ) from _JAX_IMPORT_ERROR
 
 
+def _as_rl_space(space: SearchSpace | DesignSpace) -> SearchSpace:
+    """Coerce a :class:`DesignSpace` to the fixed-topology :class:`SearchSpace` RL needs.
+
+    RL keeps one shared model and varies only the fold angles, so a
+    :class:`~origami_engine_mjx.integrations.design_space.DesignSpace` is accepted
+    only when it is angle-only and unconstrained; otherwise
+    :meth:`DesignSpace.to_search_space` raises a clear ``ValueError``.  A
+    :class:`SearchSpace` (or ``None``) is returned unchanged.
+    """
+    if isinstance(space, DesignSpace):
+        return space.to_search_space()
+    return space
+
+
 class OrigamiEnv(gym.Env if gym is not None else object):  # type: ignore[misc]
     """Single-environment origami folding task.
 
@@ -92,7 +116,7 @@ class OrigamiEnv(gym.Env if gym is not None else object):  # type: ignore[misc]
 
     def __init__(
         self,
-        space: SearchSpace | None = None,
+        space: SearchSpace | DesignSpace | None = None,
         creases=None,
         backend: str = "jax",
         frame_skip: int = 1,
@@ -125,7 +149,7 @@ class OrigamiEnv(gym.Env if gym is not None else object):  # type: ignore[misc]
                 default = SearchSpace.from_default_pattern()
                 creases = default.decode(np.zeros(default.dim))
             space = SearchSpace.from_creases(creases, active_only=True)
-        self.space = space
+        self.space = _as_rl_space(space)
         self.backend = backend
         self.frame_skip = int(frame_skip)
         self.max_steps = int(max_steps)
@@ -344,7 +368,7 @@ class OrigamiVectorEnv:
 
     def __init__(
         self,
-        space: SearchSpace,
+        space: SearchSpace | DesignSpace,
         n_envs: int = 8,
         frame_skip: int = 1,
         max_steps: int = 100,
@@ -358,6 +382,7 @@ class OrigamiVectorEnv:
         from .jax_env import reset as jax_reset
         from .jax_env import step as jax_step
 
+        space = _as_rl_space(space)
         self.space = space
         self.n_envs = int(n_envs)
         self.frame_skip = int(frame_skip)

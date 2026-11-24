@@ -12,6 +12,11 @@ Modules
 -------
 * :mod:`~origami_engine_mjx.integrations.search_space` — :class:`SearchSpace`,
   the fixed-topology fold-angle genome spec (encode/decode, bounds, sampling).
+* :mod:`~origami_engine_mjx.integrations.design_space` — :class:`DesignSpace`,
+  a configurable design space (angles, loop-edge angles, endpoints/geometry,
+  crease presence/count) with presets, a fluent builder and constraints.
+* :mod:`~origami_engine_mjx.integrations.population` — population seeding /
+  initialization (seed files, interpolation, random, mixed, diversity, I/O).
 * :mod:`~origami_engine_mjx.integrations.evaluator` — :class:`OrigamiEvaluator`,
   a stateless, picklable objective plus behavior descriptors for QD.
 * :mod:`~origami_engine_mjx.integrations.adapters` — thin, lazily-imported
@@ -35,8 +40,9 @@ Examples
 >>> score = evaluator(genome)                           # doctest: +SKIP
 """
 
-from .adapters import to_evosax_fitness, to_nevergrad_function, to_pymoo_problem
-from .evaluator import DESCRIPTOR_NAMES, BatchResult, EvalRecord, OrigamiEvaluator
+from .adapters import space_spec, to_evosax_fitness, to_nevergrad_function, to_pymoo_problem
+from .design_space import ANGLE, COORD, PRESENCE, DesignSpace, DesignSpaceBuilder, Variable
+from .evaluator import DESCRIPTOR_NAMES, BatchResult, EvalRecord, OrigamiEvaluator, topology_signature
 from .plumbing import (
     RunLogger,
     benchmark,
@@ -47,28 +53,74 @@ from .plumbing import (
     save_genome,
     set_global_seed,
 )
+from .population import (
+    Population,
+    SeedSet,
+    deduplicate,
+    diversity_filter,
+    export_creases_dir,
+    gaussian_population,
+    interpolate,
+    jitter,
+    lhs_population,
+    load_population,
+    load_seeds,
+    mixed_population,
+    piecewise_path,
+    population_stats,
+    random_barycentric,
+    random_population,
+    save_population,
+    sobol_population,
+)
 from .search_space import SearchSpace
 
 # ``env``/``jax_env`` pull in optional dependencies (gymnasium, JAX).  They are
 # safe to import without them (the imports are guarded), but we re-export the
 # symbols lazily so that a NumPy-only user never pays for them.
 __all__ = [
+    "ANGLE",
+    "COORD",
     "DESCRIPTOR_NAMES",
+    "PRESENCE",
     "BatchResult",
+    "DesignSpace",
+    "DesignSpaceBuilder",
     "EvalRecord",
     "OrigamiEvaluator",
+    "Population",
     "RunLogger",
     "SearchSpace",
+    "SeedSet",
+    "Variable",
     "benchmark",
+    "deduplicate",
+    "diversity_filter",
+    "export_creases_dir",
+    "gaussian_population",
+    "interpolate",
+    "jitter",
+    "lhs_population",
     "load_best",
     "load_genome",
+    "load_population",
+    "load_seeds",
     "make_rng",
+    "mixed_population",
+    "piecewise_path",
+    "population_stats",
+    "random_barycentric",
+    "random_population",
     "save_best",
     "save_genome",
+    "save_population",
     "set_global_seed",
+    "sobol_population",
+    "space_spec",
     "to_evosax_fitness",
     "to_nevergrad_function",
     "to_pymoo_problem",
+    "topology_signature",
 ]
 
 
