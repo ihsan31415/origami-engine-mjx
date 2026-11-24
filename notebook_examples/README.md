@@ -21,14 +21,15 @@ Main repository: <https://github.com/ihsan31415/origami-engine-mjx>
 
 ## Open in Colab
 
-The links target the integration branch. After the branch is merged, replace
-`feat/optimization-integrations-v1` with `main`.
+The links (and the install cells) point at the commit that shipped these
+notebooks; after the branch is merged, replace `957cc57` with `main` to follow
+the latest code.
 
-* [01 · Black-box quickstart](https://colab.research.google.com/github/ihsan31415/origami-engine-mjx/blob/feat/optimization-integrations-v1/notebook_examples/01_black_box_quickstart.ipynb)
-* [02 · `evosax`, all algorithms](https://colab.research.google.com/github/ihsan31415/origami-engine-mjx/blob/feat/optimization-integrations-v1/notebook_examples/02_evosax_all_algorithms.ipynb)
-* [03 · RL: Gymnasium + pure JAX](https://colab.research.google.com/github/ihsan31415/origami-engine-mjx/blob/feat/optimization-integrations-v1/notebook_examples/03_rl_gymnasium.ipynb)
-* [04 · AI / LLM agent loop](https://colab.research.google.com/github/ihsan31415/origami-engine-mjx/blob/feat/optimization-integrations-v1/notebook_examples/04_llm_agent_loop.ipynb)
-* [05 · `evosax`, switch algorithms](https://colab.research.google.com/github/ihsan31415/origami-engine-mjx/blob/feat/optimization-integrations-v1/notebook_examples/05_evosax_switchable.ipynb)
+* [01 · Black-box quickstart](https://colab.research.google.com/github/ihsan31415/origami-engine-mjx/blob/957cc57/notebook_examples/01_black_box_quickstart.ipynb)
+* [02 · `evosax`, all algorithms](https://colab.research.google.com/github/ihsan31415/origami-engine-mjx/blob/957cc57/notebook_examples/02_evosax_all_algorithms.ipynb)
+* [03 · RL: Gymnasium + pure JAX](https://colab.research.google.com/github/ihsan31415/origami-engine-mjx/blob/957cc57/notebook_examples/03_rl_gymnasium.ipynb)
+* [04 · AI / LLM agent loop](https://colab.research.google.com/github/ihsan31415/origami-engine-mjx/blob/957cc57/notebook_examples/04_llm_agent_loop.ipynb)
+* [05 · `evosax`, switch algorithms](https://colab.research.google.com/github/ihsan31415/origami-engine-mjx/blob/957cc57/notebook_examples/05_evosax_switchable.ipynb)
 
 Each notebook starts with its own install cell, which installs the package
 straight from the main repository
@@ -36,11 +37,11 @@ straight from the main repository
 notebook keeps working as the project moves on:
 
 ```python
-%pip install -q "origami-engine-mjx[jax] @ git+https://github.com/ihsan31415/origami-engine-mjx.git@feat/optimization-integrations-v1"
+%pip install -q "origami-engine-mjx[jax] @ git+https://github.com/ihsan31415/origami-engine-mjx.git@957cc57"
 ```
 
 Notebook 03 additionally installs `[rl]`; notebooks 02 and 05 install `evosax`.
-Replace `@<commit>` with `@main` to track the latest code.
+Replace `@957cc57` with `@main` to track the latest code.
 
 ## CPU vs GPU: what is actually fast
 
