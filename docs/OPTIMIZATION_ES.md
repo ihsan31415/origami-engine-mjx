@@ -175,7 +175,7 @@ search.
 | Adapter | Returns | For |
 |---|---|---|
 | `to_nevergrad_function(evaluator)` | `f(x) -> float`, minimized | `nevergrad`, `cma` |
-| `to_evosax_fitness(evaluator)` | `f(X) -> (N,)`, maximized | `evosax` (JAX) |
+| `to_evosax_fitness(evaluator)` | `f(X) -> (N,)`, higher-is-better | `evosax` (JAX; negate before `tell`) |
 | `to_pymoo_problem(evaluator)` | `pymoo.core.problem.Problem` | `pymoo` |
 
 ```python
@@ -201,10 +201,11 @@ problem = to_pymoo_problem(evaluator)  # n_var=15, n_obj=1, xl/xu from the space
 A complete, runnable version is
 [`examples/04_optimize_es.py`](../examples/04_optimize_es.py).
 
-> **Direction:** `nevergrad`, `cma` and `pymoo` **minimize**; the adapters
-> return `-fitness` for them. `evosax` **maximizes**; its adapter returns the
-> fitness directly. Because `fitness` already folds in `maximize`, you never
-> flip signs by hand.
+> **Direction:** `nevergrad`, `cma`, `pymoo` **and** `evosax` minimize. The
+> first three adapters return `-fitness`. `to_evosax_fitness` returns the
+> evaluator's higher-is-better fitness, so negate it when calling
+> `es.tell(..., -fitness, ...)` (`state.best_fitness` is the lowest value seen).
+> Because `fitness` already folds in `maximize`, you never flip signs twice.
 
 ## 4. Plumbing
 

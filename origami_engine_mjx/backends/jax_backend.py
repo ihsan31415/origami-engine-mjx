@@ -87,7 +87,20 @@ class JaxBackend(SimulationBackend):
         freq_hz: float = VIB_FREQ,
         coll_thick: float | None = None,
         jit: bool = False,
+        record: bool = False,
+        record_every: int = 1,
+        **kwargs: Any,  # accept future backend kwargs
     ) -> SimulationResult:
+        """Simulate one crease pattern.
+
+        Set ``record=True`` to store a per-frame trajectory in
+        ``result.extra["trajectory"]`` (see
+        :class:`~origami_engine_mjx.rendering.Trajectory`): a dict with
+        ``time``, ``qpos``, ``qvel`` and ``centroid`` arrays sampled every
+        ``record_every`` steps (always including the first and last step).
+        Recording costs one host copy per sampled step and does not change the
+        physics.
+        """
         if duration <= 0:
             raise ValueError("duration must be positive.")
 
@@ -109,6 +122,9 @@ class JaxBackend(SimulationBackend):
         table_x_dadr = int(classic.joint("table_x").dofadr[0])
         table_z_qadr = int(classic.joint("table_z").qposadr[0])
         table_z_dadr = int(classic.joint("table_z").dofadr[0])
+
+        info = dict(info)
+        info["table_qposadr"] = (table_x_qadr, table_z_qadr)
 
         targets = jnp.asarray(info["targets"], dtype=jnp.float32)
 
@@ -143,16 +159,45 @@ class JaxBackend(SimulationBackend):
             return mjx.step(mjx_model, d)
 
         step = jax.jit(step_fn) if jit else step_fn
+        record_every = max(1, int(record_every))
+        times: list[float] = []
+        qpos_hist: list[np.ndarray] = []
+        qvel_hist: list[np.ndarray] = []
+        centroid_hist: list[np.ndarray] = []
+
+        def capture(d, t: float) -> None:
+            times.append(float(t))
+            qpos_hist.append(np.asarray(d.qpos).copy())
+            qvel_hist.append(np.asarray(d.qvel).copy())
+            centroid_hist.append(self._centroid_from_data(d, paper_mask))
+
+        if record:
+            capture(data, 0.0)
         final_data = data
         for i in range(n_steps):
             t_scalar = jnp.asarray(i * timestep, dtype=jnp.float32)
             final_data = step(final_data, t_scalar)
+            if record and ((i + 1) % record_every == 0 or i + 1 == n_steps):
+                capture(final_data, (i + 1) * timestep)
 
         final_qpos = np.asarray(final_data.qpos)
         if not np.isfinite(final_qpos).all():
             raise FloatingPointError("unstable simulation: non-finite joint coordinates produced.")
 
         final_centroid = self._centroid_from_data(final_data, paper_mask)
+
+        extra: dict[str, Any] = {}
+        if record:
+            if not times:
+                capture(final_data, n_steps * timestep)
+            extra["trajectory"] = {
+                "time": np.asarray(times, dtype=float),
+                "qpos": np.asarray(qpos_hist),
+                "qvel": np.asarray(qvel_hist),
+                "centroid": np.asarray(centroid_hist, dtype=float),
+                # Hinge qpos columns, so plots never mix in stretch/panel joints.
+                "hinge_qposadr": np.asarray(hinge_adr, dtype=int),
+            }
 
         return SimulationResult(
             model=bundle,
@@ -162,6 +207,7 @@ class JaxBackend(SimulationBackend):
             initial_centroid=initial_centroid,
             final_centroid=final_centroid,
             backend="jax",
+            extra=extra,
         )
 
     # ------------------------------------------------------------------

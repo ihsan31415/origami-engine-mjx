@@ -45,6 +45,11 @@ class SimulationResult:
 
     ``model`` is a backend bundle dict (``mjx_model``/``warp_model`` plus
     ``classic_model`` and ``info``); ``data`` is the backend-native state.
+
+    When a run is requested with ``record=True``, ``extra["trajectory"]`` holds
+    a per-frame record (``time``, ``qpos``, ``qvel``, ``centroid``,
+    ``hinge_qposadr``) suitable for rendering and movement plots; it is absent
+    otherwise.
     """
 
     model: Any

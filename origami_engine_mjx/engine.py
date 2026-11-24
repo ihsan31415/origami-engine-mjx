@@ -74,8 +74,17 @@ class OrigamiEngine:
         amp_z: float = VIB_AMP_Z,
         freq_hz: float = VIB_FREQ,
         coll_thick: float | None = None,
+        record: bool = False,
+        record_every: int = 1,
     ) -> SimulationResult:
-        """Run a single origami fold simulation."""
+        """Run a single origami fold simulation.
+
+        Pass ``record=True`` to keep the per-frame state trajectory in
+        ``result.extra["trajectory"]`` for rendering
+        (:func:`origami_engine_mjx.rendering.render_video`) or movement plots
+        (:func:`origami_engine_mjx.rendering.plot_trajectory`).  Recording does
+        not change the final state or the score.
+        """
         return self._backend.run(
             creases,
             duration=duration,
@@ -85,6 +94,8 @@ class OrigamiEngine:
             amp_z=amp_z,
             freq_hz=freq_hz,
             coll_thick=coll_thick,
+            record=record,  # type: ignore[call-arg]  # backend-specific, see SimulationBackend.run
+            record_every=record_every,  # type: ignore[call-arg]
         )
 
     def evaluate(
@@ -97,8 +108,15 @@ class OrigamiEngine:
         amp_x: float = VIB_AMP_X,
         amp_z: float = VIB_AMP_Z,
         freq_hz: float = VIB_FREQ,
-    ) -> float:
-        """Evaluate one crease configuration; return forward displacement."""
+        return_trajectory: bool = False,
+    ) -> float | tuple[float, dict]:
+        """Evaluate one crease configuration; return forward displacement.
+
+        With ``return_trajectory=True`` returns ``(score, trajectory)`` where
+        ``trajectory`` is the recorded per-frame dict from
+        ``result.extra["trajectory"]`` (so one simulation serves both scoring
+        and rendering).
+        """
         result = self.run(
             creases,
             duration=duration,
@@ -107,8 +125,12 @@ class OrigamiEngine:
             amp_x=amp_x,
             amp_z=amp_z,
             freq_hz=freq_hz,
+            record=return_trajectory,
         )
-        return compute_forward_displacement(result, trajectory=trajectory)
+        score = compute_forward_displacement(result, trajectory=trajectory)
+        if return_trajectory:
+            return score, result.extra["trajectory"]
+        return score
 
     # ------------------------------------------------------------------
     # Population evaluation

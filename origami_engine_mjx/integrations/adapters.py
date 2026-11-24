@@ -64,10 +64,11 @@ def to_nevergrad_function(evaluator: OrigamiEvaluator) -> Callable[[np.ndarray],
 
 
 def to_evosax_fitness(evaluator: OrigamiEvaluator) -> Callable[[np.ndarray], np.ndarray]:
-    """Return a batched ``f(X) -> (N,)`` that evosax-style maximizers accept.
+    """Return a batched ``f(X) -> (N,)`` with the evaluator's fitness.
 
-    The value is the (higher-is-better) fitness, so a maximizer such as evosax
-    drives it up directly.
+    The value is higher-is-better. ``evosax`` **minimizes**
+    ``state.best_fitness``, so negate this output before ``es.tell``:
+    ``es.tell(key, X, -to_evosax_fitness(evaluator)(X), state, params)``.
     """
 
     def fitness(x) -> np.ndarray:

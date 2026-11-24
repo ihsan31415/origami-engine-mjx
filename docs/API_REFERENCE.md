@@ -124,11 +124,11 @@ Returned by `OrigamiEngine.run()` / backend `run()`.
 | `model` | `Any` | Backend bundle: `{"mjx_model", "classic_model", "info"}` for JAX or `{"warp_model", "classic_model", "info"}` for Warp. |
 | `data` | `Any` | Final backend state (`mjx.Data` / Warp data). |
 | `pattern` | `Pattern` | Validated pattern that produced the model. |
-| `info` | `dict[str, Any]` | Metadata from `generate_xml` (`hinges`, `targets`, `n_faces`, `n_hinges`, `n_loops`). |
+| `info` | `dict[str, Any]` | Metadata from `generate_xml` (`hinges`, `targets`, `n_faces`, `n_hinges`, `n_loops`) plus `table_qposadr` (`table_x`/`table_z` positions in `qpos`). |
 | `initial_centroid` | `np.ndarray` (shape `(2,)`) | Mean XY of paper geoms before stepping. |
 | `final_centroid` | `np.ndarray` (shape `(2,)`) | Mean XY of paper geoms after stepping. |
 | `backend` | `str` (`"jax"`) | `"jax"` or `"warp"`. |
-| `extra` | `dict[str, Any]` (`{}`) | Reserved metadata; currently empty. |
+| `extra` | `dict[str, Any]` (`{}`) | With `run(record=True)`: `{"trajectory": {"time", "qpos", "qvel", "centroid", "hinge_qposadr"}}` (see [SIMULATION.md](SIMULATION.md#recording-a-trajectory-recordtrue). |
 
 ### `PopulationResult` — dataclass
 
@@ -140,7 +140,7 @@ Returned by `OrigamiEngine.evaluate_population()`.
 | `backend` | `str` | `"jax"` or `"warp"`. |
 | `n_individuals` | `int` | `len(population)`. |
 | `duration` | `float` | Simulated duration per individual (s). |
-| `extra` | `dict[str, Any]` (`{}`) | Reserved metadata; currently empty. |
+| `extra` | `dict[str, Any]` (`{}`) | With `run(record=True)`: `{"trajectory": {"time", "qpos", "qvel", "centroid", "hinge_qposadr"}}` (see [SIMULATION.md](SIMULATION.md#recording-a-trajectory-recordtrue). |
 
 ## `origami_engine_mjx.geometry` — shared
 
@@ -298,7 +298,7 @@ Facade that resolves a backend through the registry and forwards simulation call
 | `.evaluate(...)` | see below | Single score → `float`. |
 | `.evaluate_population(...)` | see below | Population scores → `PopulationResult`. |
 
-#### `OrigamiEngine.run(creases, duration=8.0, fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, coll_thick=None) -> SimulationResult`
+#### `OrigamiEngine.run(creases, duration=8.0, fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, coll_thick=None, record=False, record_every=1) -> SimulationResult`
 
 Runs one fold simulation on the selected backend.
 
@@ -307,14 +307,15 @@ Runs one fold simulation on the selected backend.
 - `fold_duration` — ramp time for actuator targets; the target scale at time `t` is smoothstep `min(t/fold_duration, 1)²·(3 − 2·min(t/fold_duration, 1))`.
 - `vibrate`, `amp_x`, `amp_z`, `freq_hz` — table vibration (`qpos = amp·sin(2πft)`); defaults `VIB_AMP_X`, `VIB_AMP_Z`, `VIB_FREQ`.
 - `coll_thick` — forwarded to `generate_xml` (see above).
+- `record`, `record_every` — store every `record_every`-th frame (plus the last) in `result.extra["trajectory"]`; physics and score are unchanged.
 
 **Note:** the facade `run` has **no `jit` parameter**. Only `JaxBackend.run(..., jit=False)` exposes JIT control.
 
 **Raises:** `ValueError` (duration, crease input, invalid pattern), `FloatingPointError("unstable simulation: non-finite joint coordinates produced.")`, `RuntimeError` (backend dependencies unavailable).
 
-#### `OrigamiEngine.evaluate(creases, duration=8.0, trajectory=(1.0, 0.0, 0.0), fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0) -> float`
+#### `OrigamiEngine.evaluate(creases, duration=8.0, trajectory=(1.0, 0.0, 0.0), fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, return_trajectory=False) -> float | tuple[float, dict]`
 
-Calls `run(...)` (without `coll_thick`) and returns `compute_forward_displacement(result, trajectory)`.
+Calls `run(...)` (without `coll_thick`) and returns `compute_forward_displacement(result, trajectory)`. With `return_trajectory=True` returns `(score, trajectory)` from a single simulation.
 
 #### `OrigamiEngine.evaluate_population(population, duration=8.0, trajectory=(1.0, 0.0, 0.0), fold_duration=3.0, vibrate=True, amp_x=0.0, amp_z=0.0013, freq_hz=75.0, batch_size=None) -> PopulationResult`
 
@@ -488,6 +489,51 @@ space and the population helpers are:
 
 All of these are re-exported from `origami_engine_mjx.integrations`; existing
 imports are unchanged.
+
+### `GenerationLogger` / `GenerationSummary`, `load_generation_history`
+
+`generation_log` records the caller's own loop: per-generation
+best/mean/std/worst/median, global best, wall time and eval counts, plus a
+best-per-generation checkpoint (`keep_every_best=True`). See
+[EVALUATION.md](EVALUATION.md#logging-generations-generationlogger).
+
+```python
+GenerationLogger(path, space=None, *, maximising=True, best_path="auto",
+                 summary_path="auto", keep_every_best=False,
+                 descriptor_names=None, flush=True)
+.end_generation(generation, batch_or_records, genomes=None) -> GenerationSummary
+.log_batch(batch, genomes=None, *, generation=None)   # optional eval rows
+.log(record, genome=None, *, generation=None)
+.curve() -> (generations, best, mean, global_best)
+```
+
+`RunLogger(path, format=None, descriptor_names=None, *, include_generation=False)`
+gains the `include_generation` flag and `generation=` tags; the default schema
+is unchanged.
+
+## `origami_engine_mjx.rendering` — video, cameras, plots
+
+Rendering replays a recorded trajectory (`run(record=True)`) through MuJoCo's
+offscreen renderer. Needs `MUJOCO_GL=egl` (or `osmesa`); MP4 needs `ffmpeg`
+(GIF works without it). See [SIMULATION.md](SIMULATION.md#rendering).
+
+| Function | Purpose |
+|---|---|
+| `render_video(result, path, *, camera=None, cameras=None, views=None, prefix=None, plot=None, overlay="freq/amp", resolution=(480, 360), fps=25, max_frames=None, lookat=None, zoom=1.0, excitation=None, overlay_extra=None, save_camera_json=True) -> Path` | Render and encode one video (MP4, or GIF by suffix). |
+| `render_frames(result, *, cameras=None, views=None, plot=None, max_frames=None, resolution=(480, 360), ...) -> list[np.ndarray]` | Same compositing without encoding. |
+| `layout_frames(tiles, *, plot=None, plot_images=None, overlay=..., overlay_values=None, resolution=None) -> np.ndarray` | Concatenate camera tiles (+ graph column) and draw the overlay. |
+| `CameraSpec` | `name`, `lookat`, `distance`, `azimuth`, `elevation` (`as_dict()`). |
+| `resolve_camera(camera=None, *, prefix=None, zoom=1.0, lookat=None, bounds=None) -> CameraSpec` | Preset name, `(az, el[, dist[, zoom]])`, mapping or `CameraSpec` → `CameraSpec`. |
+| `resolve_cameras(cameras) -> list[CameraSpec]` | Any of the above, or a list of them. |
+| `available_cameras(prefix=None)`, `CAMERA_PRESETS`, `cinematic_views(prefix=None)` | Preset names (26) and the 4-view set used by `views="all_sides"`. |
+| `save_camera(spec, path)`, `load_camera(path)` | Camera JSON sidecar round-trip. |
+| `Trajectory` | `.from_result(result)` / `.from_dict(dict)`; `time`, `qpos`, `qvel`, `centroid`, `displacement`, `center_of_mass(relative=True)`, `velocity(...)`, `hinge_angles()`, `subsample(n)`, `subset(idx)`. |
+| `plot_trajectory(obj, axis="all", *, path=None, ...)`, `plot_axes`, `movement_figure`, `axes_figure` | Movement graphs (per axis / hinge actuation). |
+| `trajectory_to_image(obj, axis="x", size=..., progress=None, style=...)` | One panel as an RGB array (used inside videos). |
+| `plot_history(history, *, path=None, maximising=None, ...)`, `history_to_image(history, ...)` | Best/mean/global-best per generation from `GenerationLogger`. |
+| `default_overlay(freq_hz, amp_x=..., amp_z=..., vibrate=True, extra=None)` | Default bottom-left freq/amp text factory. |
+| `draw_text`, `caption`, `overlay_text`, `hconcat`, `vconcat`, `with_letterbox` | Compositing helpers. |
+| `VideoWriter`, `ffmpeg_available`, `write_gif` | Encoding helpers. |
 
 ## See also
 

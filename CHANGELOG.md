@@ -40,11 +40,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation `docs/SEARCH_SPACE.md` and `docs/POPULATIONS.md`; examples
   `examples/06_design_space.py` and `examples/07_populations.py`; tests
   `tests_mjx/test_design_space.py` and `tests_mjx/test_population.py`.
+- `notebook_examples/` — Colab-ready, self-contained integration notebooks:
+  black-box optimizers (`nevergrad` / CMA-ES / `pymoo`), a single generic driver
+  for every `evosax` strategy, Gymnasium + pure-JAX RL, and an AI/LLM agent
+  loop, plus an index README with CPU/GPU cost guidance. The notebooks consume
+  the library; they add no algorithms to it.
+- `prompts/origami-optimizer-integration.md` — a reusable, algorithm-agnostic
+  integration recipe (space selection, evaluator direction, adapters, seeding,
+  logging, checkpoints and a verification checklist).
+- Trajectory recording: `OrigamiEngine.run(..., record=True, record_every=1)`
+  stores `time`/`qpos`/`qvel`/`centroid`/`hinge_qposadr` in
+  `result.extra["trajectory"]` (physics and score unchanged), and
+  `OrigamiEngine.evaluate(..., return_trajectory=True)` returns
+  `(score, trajectory)` from one simulation. Both backends also report
+  `info["table_qposadr"]`.
+- `origami_engine_mjx/rendering/` — rendering of recorded runs: 26 named
+  camera presets (`top`, `side`, `side_left`, `top_side_left`, `iso_top`, …)
+  plus manual POVs `(azimuth, elevation[, distance[, zoom]])`, prefixed
+  namespaces and JSON camera sidecars (`<stem>.camera.json`); multi-view
+  concatenation (`views="all_sides"` = four views in one video); movement
+  graphs beside the video (`plot="x"|"y"|"z"|"xyz"` or a list); a freq/amp
+  overlay in the bottom-left of **every** frame; MP4 (h264 via `ffmpeg`) or
+  GIF output; standalone `plot_trajectory(...)` and `plot_history(...)`.
+- `integrations/generation_log.py` — `GenerationLogger` (`end_generation`,
+  optional per-individual eval rows, best/mean/std/worst/median, global best,
+  per-generation wall time, `RunLogger`-compatible JSONL/CSV, `run.summary.json`,
+  `run.best.json` and best-per-generation checkpoints), `GenerationSummary`
+  and `load_generation_history`.
+- `RunLogger(..., include_generation=True)` adds an optional `generation`
+  column/key (default schema unchanged).
+- Documentation: rendering section in `docs/SIMULATION.md`, generation logging
+  in `docs/EVALUATION.md`, rendering/logging API in `docs/API_REFERENCE.md`;
+  tests `tests_mjx/test_rendering_generation.py` (fast) and
+  `tests_mjx/test_rendering_video.py` (slow, needs GL + `ffmpeg`).
 
 ### Changed
 - `OrigamiEnv` / `OrigamiVectorEnv` accept a `SearchSpace` **or** an angle-only,
   unconstrained `DesignSpace`; a geometry/presence/constrained design space is
   rejected with a clear error (RL needs one shared, fixed topology).
+- Corrected the documented `evosax` direction: it **minimizes**
+  `state.best_fitness`, so `to_evosax_fitness` output must be negated before
+  `tell` (`docs/OPTIMIZATION_ES.md` and the adapter docstring).
 
 ## [1.0.0] - 2026-11-24
 
