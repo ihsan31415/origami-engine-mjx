@@ -100,6 +100,26 @@ def generate_xml(pat, creases, name="origami_free", coll_thick=None, actuated=No
 
     mesh_lines, body_lines, hinges = [], [], []
 
+    # Loop closure.  A loop edge is simulated by tying the physical point that
+    # both faces share, which MuJoCo expresses as two *sites* (one in each
+    # body's frame) plus a ``connect`` equality between the sites.  Binding the
+    # two points -- rather than one body frame origin to an anchor -- is what
+    # leaves the crease hinges free to rotate: the tied points sit on the crease
+    # axes, so the fold does no work against the closure.
+    eq_lines = []
+    loop_sites: dict[int, list] = {i: [] for i in range(n)}
+    for k in pat.loop_edges:
+        e = edges[k]
+        i, j = e["i"], e["j"]
+        for t, pt in enumerate((e["p"], e["q"])):
+            site_i = f"loop_{k}_{t}_a"
+            site_j = f"loop_{k}_{t}_b"
+            loop_sites[i].append((site_i, pt[0] - origin[i][0], pt[1] - origin[i][1]))
+            loop_sites[j].append((site_j, pt[0] - origin[j][0], pt[1] - origin[j][1]))
+            eq_lines.append(
+                f'        <connect site1="{site_i}" site2="{site_j}" solref="{EQ_SOLREF}" solimp="{EQ_SOLIMP}"/>'
+            )
+
     def emit(i, depth):
         ind = "    " * (depth + 2)
         if i == pat.root:
@@ -168,21 +188,15 @@ def generate_xml(pat, creases, name="origami_free", coll_thick=None, actuated=No
                     f'friction="{MU_PAPER} 0.005 0.0001"/>'
                 )
 
+        for sname, sx, sy in loop_sites[i]:
+            body_lines.append(f'{ind}    <site name="{sname}" pos="{sx:.6f} {sy:.6f} 0" size="0.001"/>')
+
         for c in children[i]:
             emit(c, depth + 1)
         body_lines.append(f"{ind}</body>")
 
     emit(pat.root, 0)
 
-    eq_lines = []
-    for k in pat.loop_edges:
-        e = edges[k]
-        oi = origin[e["i"]]
-        for pt in (e["p"], e["q"]):
-            eq_lines.append(
-                f'        <connect body1="face_{e["i"]}" body2="face_{e["j"]}" '
-                f'anchor="{pt[0] - oi[0]:.6f} {pt[1] - oi[1]:.6f} 0" solref="{EQ_SOLREF}" solimp="{EQ_SOLIMP}"/>'
-            )
     eq_block = ""
     if eq_lines:
         eq_block = "\n  <equality>\n" + "\n".join(eq_lines) + "\n  </equality>\n"
