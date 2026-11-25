@@ -81,10 +81,7 @@ def _strict_mujoco_warp():
     def _make_data(mjm, **kwargs):
         # ``mujoco_warp`` sizes every device array from the batch sizes that
         # ``put_model`` was given, i.e. one world per batched field.
-        nworld = 1
-        for value in (kwargs.get("batch_sizes") or {}).values():
-            nworld = max(nworld, int(value))
-        return StrictWpData(mjm, nworld=nworld)
+        return StrictWpData(mjm, nworld=int(kwargs.get("nworld") or 1))
 
     return _module(
         "mujoco_warp",

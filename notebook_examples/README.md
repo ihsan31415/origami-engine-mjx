@@ -127,3 +127,5 @@ harmless `Failed to import warp` line on machines without `warp-lang`.
 * [Reinforcement learning](../docs/RL.md) — environment API and reward contract
 * [Integrations overview](../docs/INTEGRATIONS.md) — what is and is not in the library
 * [Colab + GPU notes](../docs/COLAB_GPU.md) — runtime and install guidance
+
+* [06 · `EvoTF_ES` — all creases, all angles (Warp GPU)](06_evotf_warp_all_creases.ipynb) — batched Warp simulation on T4; optimises hinge angles **and** every crease vertex with an 85/15 movement+fold score.

@@ -12,7 +12,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-25
+
 ### Added
+- Warp backend: batched population evaluation (one model, one world per genome,
+  stepped in one captured CUDA graph), cached device models and batches,
+  `njmax`/`nconmax` floors, and `suggest_batch_size`.
+- GPU-marked correctness guard comparing batched and single-candidate scores.
+
+### Fixed
+- Loop-closure equality now ties the two bodies at the shared physical point via
+  sites (`<connect site1 site2>`), leaving the crease hinges free to fold.
+- `__version__` reads installed package metadata instead of a hardcoded value.
+- MJX-Warp 4.0 field names and `make_data(nworld=...)` in the batched path.
+
 - `integrations/design_space.py` — `DesignSpace` / `DesignSpaceBuilder`, a
   **configurable** search space (fold angles, loop-edge angles, crease
   endpoints/geometry, crease presence/count) with the presets `angles_only`,
