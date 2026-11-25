@@ -64,68 +64,40 @@ except Exception as exc:  # noqa: BLE001 - Warp is optional
 # ``mujoco_warp.put_model`` takes a batch size per field.  Fields that describe
 # the *model* (bodies, joints, geoms, constraints, actuators) become per world.
 _BATCHED_FIELDS = (
+    # Fields read by ``set_world`` that mujoco-warp 4.0.1 marks as batched
+    # (``(*, ...)`` array spec).  Passing any other field to ``put_model``
+    # raises "Model field ... is not a batched array field".
     "qpos0",
     "body_pos",
     "body_quat",
-    "body_mass",
-    "body_inertia",
     "body_ipos",
     "body_iquat",
-    "body_parentid",
-    "body_sameframe",
-    "body_jntadr",
-    "body_jntnum",
-    "body_geomadr",
-    "body_geomnum",
-    "body_simple",
-    "jnt_type",
-    "jnt_qposadr",
-    "jnt_dofadr",
-    "jnt_bodyid",
-    "jnt_axis",
-    "jnt_pos",
-    "jnt_range",
-    "jnt_stiffness",
+    "body_mass",
+    "body_inertia",
     "jnt_solref",
     "jnt_solimp",
+    "jnt_pos",
+    "jnt_axis",
+    "jnt_stiffness",
+    "jnt_range",
     "jnt_margin",
-    "jnt_damping",
-    "jnt_armature",
-    "geom_type",
+    "geom_solref",
+    "geom_solimp",
     "geom_size",
     "geom_pos",
     "geom_quat",
-    "geom_bodyid",
-    "geom_dataid",
-    "geom_matid",
-    "geom_rgba",
     "geom_friction",
-    "geom_solref",
-    "geom_solimp",
     "geom_margin",
     "geom_gap",
-    "geom_contype",
-    "geom_conaffinity",
-    "geom_condim",
-    "geom_priority",
-    "eq_type",
-    "eq_obj1id",
-    "eq_obj2id",
-    "eq_data",
+    "geom_rgba",
+    "geom_dataid",
     "eq_solref",
     "eq_solimp",
-    "eq_active",
-    "actuator_ctrllimited",
-    "actuator_forcelimited",
-    "actuator_ctrlrange",
-    "actuator_forcerange",
-    "actuator_trnid",
-    "actuator_gear",
-    "actuator_gainprm",
-    "actuator_biasprm",
+    "eq_data",
     "site_pos",
     "site_quat",
-    "site_bodyid",
+    "actuator_gainprm",
+    "actuator_biasprm",
 )
 
 # Constraint / contact buffer floors for one world.  MuJoCo Warp's defaults are
@@ -338,7 +310,7 @@ class _Batch:
             _assign(self.warp_model.mesh_vert, self.mesh_vert)
         # ``set_world`` needs the device data (``set_const`` is applied later).
         t0 = time.perf_counter()
-        self.data = backend._make_data(self.classic, batch_sizes=batch_sizes or None)
+        self.data = backend._make_data(self.classic, nworld=self.nworld)
         backend.last_timings["make_data"] = time.perf_counter() - t0
         backend.last_timings["nworld"] = float(self.nworld)
         if self.worlds is not None:
@@ -592,9 +564,9 @@ class WarpBackend(SimulationBackend):
         kwargs.setdefault("njmax", _constraint_floor(classic))
         # ``make_data`` sizes every device array from the batch it is given;
         # a batched model needs one world per batched field.
-        batch_sizes = kwargs.pop("batch_sizes", None)
-        if batch_sizes:
-            kwargs["batch_sizes"] = dict(batch_sizes)
+        nworld = kwargs.pop("nworld", None)
+        if nworld is not None:
+            kwargs["nworld"] = int(nworld)
         try:
             return mjw.make_data(classic, **kwargs)
         except TypeError:  # 3.x ``make_data(warp_model)``
