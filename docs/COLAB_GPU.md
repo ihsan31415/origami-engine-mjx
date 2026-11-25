@@ -76,3 +76,16 @@ The script prints a structured report. On a correctly configured T4:
 - [BACKENDS.md](BACKENDS.md) — backend semantics and feature table
 - [examples/README.md](../examples/README.md) — runnable scripts
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md) — general runtime issues
+## Measured: batched Warp evolution (T4, 2026-11-25)
+
+Runtime: Colab T4 (15 GiB), `mujoco-warp==4.0.1`, `warp-lang==1.19.0`, JAX 0.11.1 + CUDA 13 plugin; package branch `perf/colab-warp-all-creases`. Pattern: 2×2 Miura, 6 creases, 12 free variables (4 angles + 8 vertex coordinates). `duration=0.05 s`, `fold=0.02 s`, `vibrate=False`.
+
+| Worlds | Wall time | Candidates/s | Graph launch | Host readback |
+|---:|---:|---:|---:|---:|
+| 8  | 0.24 s | 33  | 0.0039 s | 0.031 s |
+| 32 | 0.52 s | 62  | 0.0039 s | 0.039 s |
+| 128| 1.77 s | 72  | 0.0041 s | 0.074 s |
+
+Sequential single-candidate scoring of 8 genomes took 0.49 s (16 cand/s). Batched and single scores agreed to 5e-9 (max abs difference). Per-call model rebuild cost ~0.6 s (`put_model`); caching the batched model/graph removes it. The notebook's end-to-end run: 3 generations × 32 candidates = 96 simulations in ~32 s, 3/3 successful generations, per-generation JSON checkpoints written.
+
+Setup pitfalls: install only one JAX CUDA plugin (Colab ships jax-cuda13; a `[jax]` reinstall adds jax-cuda12 and triggers `PJRT_Api already exists for device type cuda` — uninstall `jax-cuda12-*`). `mujoco-warp 4.0` needs `make_data(nworld=...)` and only fields with an `(*, …)` array spec may be passed as `batch_sizes` to `put_model`. Use `colab ssh` + `nohup` for runs longer than ~30 s; `colab exec` drops the connection during long kernel compiles.
