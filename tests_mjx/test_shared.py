@@ -59,7 +59,10 @@ def test_generate_xml_produces_valid_mjcf():
     assert info["targets"].shape == (15,)
     # Should contain key structural elements.
     assert '<freejoint name="root"/>' in xml
-    assert '<connect body1="face_' in xml
+    # Loop edges tie the shared physical points of the two faces (sites), so the
+    # closure does not lock the crease hinges.
+    assert '<connect site1="loop_' in xml
+    assert '<site name="loop_' in xml
     assert '<position name="fold_' in xml
     assert 'name="table"' in xml
 

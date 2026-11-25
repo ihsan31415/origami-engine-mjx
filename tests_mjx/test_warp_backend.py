@@ -5,6 +5,7 @@ as ``mujoco.warp`` inside MuJoCo.  These tests fake both modules (and a minimal
 ``warp`` module for the CUDA probe), so they run without a GPU or Warp install.
 """
 
+import contextlib
 import importlib
 import sys
 import types
@@ -36,9 +37,27 @@ def _module(name, **attrs):
 
 
 def _fake_warp(*, is_cuda):
-    """Minimal stand-in for ``warp`` exposing the CUDA probe."""
+    """Minimal stand-in for ``warp`` exposing the CUDA probe and graph API."""
     device = types.SimpleNamespace(is_cuda=is_cuda)
-    return _module("warp", get_device=mock.Mock(return_value=device))
+
+    class _ScopedCapture:
+        def __init__(self, *args, **kwargs):
+            self.graph = None
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            self.graph = "graph"
+            return False
+
+    return _module(
+        "warp",
+        get_device=mock.Mock(return_value=device),
+        synchronize_device=mock.Mock(name="synchronize_device"),
+        ScopedCapture=_ScopedCapture,
+        capture_launch=mock.Mock(name="capture_launch"),
+    )
 
 
 def _fake_mujoco_warp():
@@ -48,6 +67,30 @@ def _fake_mujoco_warp():
         put_model=mock.Mock(name="put_model", return_value="warp-model"),
         make_data=mock.Mock(name="make_data", return_value="warp-data"),
         step=mock.Mock(name="step"),
+    )
+
+
+def _strict_mujoco_warp():
+    """``mujoco-warp`` stand-in built from strict ``wp.array`` device stubs."""
+
+    def _put_model(mjm, **kwargs):
+        model = StrictWpModel(mjm)
+        model.batch_sizes = dict(kwargs.get("batch_sizes") or {})
+        return model
+
+    def _make_data(mjm, **kwargs):
+        # ``mujoco_warp`` sizes every device array from the batch sizes that
+        # ``put_model`` was given, i.e. one world per batched field.
+        nworld = 1
+        for value in (kwargs.get("batch_sizes") or {}).values():
+            nworld = max(nworld, int(value))
+        return StrictWpData(mjm, nworld=nworld)
+
+    return _module(
+        "mujoco_warp",
+        put_model=mock.Mock(name="put_model", side_effect=_put_model),
+        make_data=mock.Mock(name="make_data", side_effect=_make_data),
+        step=mock.Mock(name="step", side_effect=_strict_step),
     )
 
 
@@ -130,10 +173,15 @@ def test_build_model_and_make_state_use_mujoco_warp(install_fakes):
 
     mjw.put_model.assert_called_once_with(bundle["classic_model"])
     assert bundle["warp_model"] == "warp-model"
-    assert bundle["info"] == {"hinges": []}
-    # 4.0's make_data takes the host model, not the device model.
+    assert bundle["info"] == {"hinges": [], "xml": _OPEN_MJCF}
+    # 4.0's make_data takes the host model, not the device model, plus buffers
+    # sized for an articulated sheet (mujoco-warp's defaults drop constraints).
     backend.make_state(bundle)
-    mjw.make_data.assert_called_once_with(bundle["classic_model"])
+    mjw.make_data.assert_called_once_with(
+        bundle["classic_model"],
+        nconmax=warp_backend._contact_floor(bundle["classic_model"]),
+        njmax=warp_backend._constraint_floor(bundle["classic_model"]),
+    )
 
 
 def test_build_model_falls_back_to_make_model(install_fakes):
@@ -170,7 +218,8 @@ def test_warp_backend_is_unavailable_without_mujoco_warp(install_fakes):
 #
 # Newer ``warp-lang`` raises RuntimeError("Item indexing is not supported on
 # wp.array objects") when a device array is passed to np.asarray() or indexed
-# directly, so every read/write must go through ``.numpy()`` / ``.assign()``.
+# directly, so every array read/write must go through ``.numpy()`` /
+# ``.assign()`` / in-place ``wp.array`` writes.
 # ---------------------------------------------------------------------------
 
 
@@ -202,20 +251,24 @@ class StrictWpArray:
     def __iter__(self):
         raise RuntimeError(self._ERROR)
 
+    def __len__(self):
+        return int(self._data.shape[0])
+
 
 class StrictWpData:
     """Minimal ``mujoco_warp`` data stub whose fields are all strict arrays."""
 
-    def __init__(self, mjm):
-        self.qpos = StrictWpArray(np.zeros((1, mjm.nq)))
-        self.qvel = StrictWpArray(np.zeros((1, mjm.nv)))
-        self.ctrl = StrictWpArray(np.zeros((1, mjm.nu)))
-        self.geom_xpos = StrictWpArray(np.full((1, mjm.ngeom, 3), 0.25))
+    def __init__(self, mjm, nworld=1):
+        self.qpos = StrictWpArray(np.zeros((nworld, mjm.nq)))
+        self.qvel = StrictWpArray(np.zeros((nworld, mjm.nv)))
+        self.ctrl = StrictWpArray(np.zeros((nworld, mjm.nu)))
+        self.geom_xpos = StrictWpArray(np.full((nworld, mjm.ngeom, 3), 0.25))
 
 
 class StrictWpModel:
     def __init__(self, mjm):
         self.geom_bodyid = StrictWpArray(mjm.geom_bodyid)
+        self.mesh_vert = StrictWpArray(mjm.mesh_vert)
 
 
 def _strict_step(model, data):
@@ -225,10 +278,7 @@ def _strict_step(model, data):
 @pytest.fixture
 def strict_warp(monkeypatch):
     """Run ``WarpBackend`` against strict ``wp.array`` stubs (no GPU)."""
-    fake = _fake_mujoco_warp()
-    fake.put_model = mock.Mock(name="put_model", side_effect=StrictWpModel)
-    fake.make_data = mock.Mock(name="make_data", side_effect=StrictWpData)
-    fake.step = mock.Mock(name="step", side_effect=_strict_step)
+    fake = _strict_mujoco_warp()
     monkeypatch.setitem(sys.modules, "mujoco_warp", fake)
     monkeypatch.setitem(sys.modules, "mujoco.warp", None)
     monkeypatch.setitem(sys.modules, "warp", _fake_warp(is_cuda=True))
@@ -265,9 +315,26 @@ def test_set_item_assigns_into_warp_array():
     assert np.array_equal(arr._data[0, :2], [1.0, 2.0])
 
 
+def _test_host_model(wb):
+    """A compiled model whose mesh geoms point at their mesh (CPU only).
+
+    ``_OPEN_MJCF`` references its mesh by name, and MuJoCo only fills
+    ``geom_dataid`` for inline meshes.  The generated origami XML uses inline
+    meshes and is covered by the GPU-marked test; this helper keeps the CPU path
+    exercising the same batching code.
+    """
+    mjm = wb.MjModel.from_xml_string(_OPEN_MJCF)
+    ids = np.nonzero(np.asarray(mjm.geom_type) == wb.mujoco.mjtGeom.mjGEOM_MESH)[0]
+    mjm.geom_dataid[ids] = np.arange(ids.size)
+    return contextlib.nullcontext()
+
+
 def test_run_accepts_strict_warp_arrays(strict_warp, tiny_creases):
     wb, _ = strict_warp
-    result = wb.WarpBackend().run(tiny_creases, duration=0.005, fold_duration=0.002, vibrate=True, record=True)
+    if wb.mujoco is None:
+        pytest.skip("mujoco is not installed")
+    with _test_host_model(wb):
+        result = wb.WarpBackend().run(tiny_creases, duration=0.005, fold_duration=0.002, vibrate=True, record=True)
 
     assert result.backend == "warp"
     assert np.isfinite(result.final_centroid).all()
@@ -291,3 +358,24 @@ def test_run_batch_with_strict_arrays(strict_warp, tiny_creases):
     )
     assert scores.shape == (2,)
     assert np.isfinite(scores).all()
+
+
+def test_run_batch_uses_one_world_per_candidate(strict_warp, tiny_creases):
+    """A population of one XML becomes one batched model, not N simulations."""
+    wb, fake = strict_warp
+    backend = wb.WarpBackend()
+    made = []
+
+    real_make_batch = backend.make_batch
+
+    def make_batch(template, nworld):
+        made.append(nworld)
+        return real_make_batch(template, nworld)
+
+    backend.make_batch = make_batch
+    scores = backend.run_batch([tiny_creases] * 3, duration=0.003, fold_duration=0.002, vibrate=False)
+    assert made == [3]
+    assert scores.shape == (3,)
+    assert np.isfinite(scores).all()
+    # One warm-up + one captured step per launch, not one per candidate.
+    assert fake.step.call_count < 3 * 30

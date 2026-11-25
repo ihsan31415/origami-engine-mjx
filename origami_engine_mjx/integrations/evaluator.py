@@ -223,9 +223,10 @@ class OrigamiEvaluator:
         those exceptions.  Non-finite scores always become ``"nonfinite"``
         records, and a wrong-length genome always raises ``ValueError``.
     batch_size : int | None
-        Forwarded to :meth:`OrigamiEngine.evaluate_population`.  Both built-in
-        backends currently ignore it (they loop per individual), so it has no
-        throughput effect today; see ``docs/OPTIMIZATION_ES.md``.
+        Forwarded to :meth:`OrigamiEngine.evaluate_population`.  The Warp backend
+        scores a whole population in one batched GPU model, so this bounds the
+        chunk it sends at once; ``None`` (default) means "one chunk per batch".
+        See ``docs/OPTIMIZATION_ES.md``.
     return_descriptors : bool
         When ``True``, :meth:`evaluate_batch` always uses the slower structured
         path so :data:`DESCRIPTOR_NAMES` are populated.
@@ -293,6 +294,19 @@ class OrigamiEvaluator:
         self.n_evaluations = 0
         self.n_cache_hits = 0
         self._cache: dict[bytes, EvalRecord] = {}
+        # Lazily built engine (see ``_engine``); excluded from pickling.
+        self._engine_cache: OrigamiEngine | None = None
+
+    def __getstate__(self) -> dict[str, object]:
+        # Drop the cached engine: a pickled evaluator must not carry a GPU
+        # model or captured graph across a process boundary.
+        state = dict(self.__dict__)
+        state["_engine_cache"] = None
+        return state
+
+    def __setstate__(self, state: dict[str, object]) -> None:
+        self.__dict__.update(state)
+        self._engine_cache = None
 
     # ------------------------------------------------------------------
     # Introspection
@@ -340,9 +354,16 @@ class OrigamiEvaluator:
     # ------------------------------------------------------------------
 
     def _engine(self) -> OrigamiEngine:
-        # Constructed per call so the evaluator stays trivially picklable and
-        # never holds a backend model handle across process boundaries.
-        return OrigamiEngine(backend=self.backend)
+        # Built once and reused: an engine holds the backend, which (for Warp)
+        # owns a compiled-model cache and a captured CUDA graph.  Rebuilding it
+        # per genome would recompile the same model for every individual.  The
+        # engine is created lazily so the evaluator stays trivially picklable
+        # (``_engine_cache`` is not part of the pickled state).
+        engine = self._engine_cache
+        if engine is None:
+            engine = OrigamiEngine(backend=self.backend)
+            self._engine_cache = engine
+        return engine
 
     def _simulate(self, engine: OrigamiEngine, creases) -> tuple[float, dict[str, float]]:
         """Run one simulation and return ``(raw, descriptors)``.
