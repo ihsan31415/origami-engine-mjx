@@ -696,8 +696,8 @@ class WarpBackend(SimulationBackend):
         data = batch.data
         classic = batch.classic
         info = dict(bundle["info"])
-        world = bundle.get("world")
-        idx = (0,) if world is None else (world,)
+        world_id = bundle.get("world")
+        idx = (0,) if world_id is None else (int(world_id),)
 
         hinge_adr = batch.hinge_adr
         table_x_qadr, table_x_dadr = batch.table_x_qadr, batch.table_x_dadr
@@ -719,7 +719,7 @@ class WarpBackend(SimulationBackend):
             _set_item(data.qpos, idx + (hinge_adr,), 0.0)
 
         paper_mask = batch.paper_mask
-        initial_centroid = self._centroid_from_data(data, paper_mask, world)
+        initial_centroid = self._centroid_from_data(data, paper_mask, int(world_id or 0))
 
         timestep = float(classic.opt.timestep)
         n_steps = round(duration / timestep)
@@ -734,7 +734,7 @@ class WarpBackend(SimulationBackend):
             times.append(float(t))
             qpos_hist.append(_item(data.qpos, idx))
             qvel_hist.append(_item(data.qvel, idx))
-            centroid_hist.append(self._centroid_from_data(data, paper_mask, world))
+            centroid_hist.append(self._centroid_from_data(data, paper_mask, int(world_id or 0)))
             if not schedule_static:
                 mask_hist.append(current_mask.copy())
 
@@ -771,7 +771,7 @@ class WarpBackend(SimulationBackend):
         if not np.isfinite(final_qpos).all():
             raise FloatingPointError("unstable simulation: non-finite joint coordinates produced.")
 
-        final_centroid = self._centroid_from_data(data, paper_mask, world)
+        final_centroid = self._centroid_from_data(data, paper_mask, int(world_id or 0))
         info["actuated"] = current_mask
         info["hinge_qpos"] = final_qpos[hinge_adr] if len(hinge_adr) else np.zeros(0, dtype=float)
 
@@ -843,13 +843,13 @@ class WarpBackend(SimulationBackend):
         if not population:
             return np.zeros((0,), dtype=float)
         if batch_size is not None and int(batch_size) < len(population):
-            scores = [
+            chunks = [
                 self.run_batch(population[i : i + batch_size], **_batch_kwargs(locals()))
                 for i in range(0, len(population), int(batch_size))
             ]
-            return np.concatenate(scores) if scores else np.zeros((0,), dtype=float)
+            return np.concatenate(chunks) if chunks else np.zeros((0,), dtype=float)
 
-        prepared = []
+        prepared: list[tuple[Any, str, dict[str, Any]] | None] = []
         for creases in population:
             try:
                 prepared.append(self._prepare(creases, None, actuated))
@@ -1086,9 +1086,9 @@ def _replicate_meshes(classic: Any, nworld: int, template_xml: str | None = None
             copy = spec.add_mesh()
             copy.name = _mesh_name(mesh.name, world)
             copy.uservert = [float(v) for v in mesh.uservert]
-            faces = list(mesh.userface)
-            if faces:
-                copy.userface = [int(f) for f in faces]
+            copy_faces = list(mesh.userface)
+            if copy_faces:
+                copy.userface = [int(f) for f in copy_faces]
     model = spec.compile()
     if int(model.nmesh) != nworld * len(originals):
         raise RuntimeError(f"mesh replication produced {model.nmesh} meshes, expected {nworld * len(originals)}")
