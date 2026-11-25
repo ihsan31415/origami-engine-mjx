@@ -428,6 +428,9 @@ class WarpBackend(SimulationBackend):
         # and the device model of the most recent ``put_model``.
         self.last_timings: dict[str, float] = {}
         self._last_put_model: Any = None
+        # One batched device model + captured graph per (XML, world count),
+        # reused across generations; building it costs ~2 s on a T4.
+        self._batch_cache: dict[tuple[str, int], _Batch] = {}
 
     def is_available(self) -> bool:
         if mujoco is None or mjw is None:
@@ -452,7 +455,7 @@ class WarpBackend(SimulationBackend):
 
     @classmethod
     def clear_model_cache(cls) -> None:
-        """Drop every cached device model (frees GPU memory)."""
+        """Drop every cached device model and batch (frees GPU memory)."""
         with cls._LOCK:
             cls._MODEL_CACHE.clear()
 
@@ -778,13 +781,13 @@ class WarpBackend(SimulationBackend):
     # ------------------------------------------------------------------
 
     def make_batch(self, template: dict[str, Any], nworld: int) -> _Batch:
-        """Build a batched Warp model over ``nworld`` worlds.
-
-        ``template`` is a :meth:`build_model` bundle whose XML defines the
-        shared topology; call :meth:`_Batch.set_world` once per world before the
-        first step so each world carries its own candidate's parameters.
-        """
-        return _Batch(self, template, nworld)
+        """Build (or reuse) a batched Warp model over ``nworld`` worlds."""
+        key = (template["xml"], int(nworld))
+        batch = self._batch_cache.get(key)
+        if batch is None:
+            batch = _Batch(self, template, nworld)
+            self._batch_cache[key] = batch
+        return batch
 
     def run_batch(
         self,
@@ -887,10 +890,11 @@ class WarpBackend(SimulationBackend):
         freq_hz: float,
     ) -> np.ndarray:
         """Run one world per ``item`` (same topology) and return +x scores."""
-        xml, info = items[0][1][1], items[0][1][2]
-        bundle = self.build_model(xml, info)
+        bundles = [self.build_model(item[1][1], item[1][2]) for item in items]
         nworld = len(items)
-        batch = self.make_batch(bundle, nworld)
+        batch = self.make_batch(bundles[0], nworld)
+        for world, bundle in enumerate(bundles):
+            batch.set_world(world, bundle["classic_model"])
         batch.finish()
 
         initial_centroids = np.asarray(_to_numpy(batch.data.geom_xpos)[:, batch.paper_mask, :2], dtype=float).mean(
