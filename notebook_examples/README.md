@@ -18,18 +18,20 @@ Main repository: <https://github.com/ihsan31415/origami-engine-mjx>
 | [03 · RL: Gymnasium + pure JAX](03_rl_gymnasium.ipynb) | `OrigamiEnv`, `check_env`, action/reward contract, jitted `step` + `lax.scan`, optional Stable-Baselines3 PPO | `gymnasium`; optional `stable-baselines3` |
 | [04 · AI / LLM agent loop](04_llm_agent_loop.ipynb) | `propose -> evaluate -> summarize` loop with a deterministic mock proposer and an optional OpenAI-compatible model | none (stdlib client); optional API key |
 | [05 · `evosax`, switch algorithms](05_evosax_switchable.ipynb) | **start here if you are new**: change one word (`STRATEGY`) to run any `evosax` algorithm, and mix movement with folding fitness | `evosax>=0.3` |
+| [06 · `EvoTF_ES` — all creases, all angles](06_evotf_warp_all_creases.ipynb) | batched Warp simulation on a T4 GPU: optimises 4 hinge angles **and** 8 crease-vertex coordinates (12 free variables) with an 85/15 movement+fold score | `evosax>=0.3`, `mujoco-warp` |
 
 ## Open in Colab
 
-The links (and the install cells) point at the commit that shipped these
-notebooks; after the branch is merged, replace `957cc57` with `main` to follow
-the latest code.
+These links open each notebook from `main`, so they always follow the latest
+code. Notebook 06 needs a **T4 GPU** runtime (`Runtime → Change runtime type →
+T4 GPU`); the others run on CPU.
 
-* [01 · Black-box quickstart](https://colab.research.google.com/github/ihsan31415/origami-engine-mjx/blob/957cc57/notebook_examples/01_black_box_quickstart.ipynb)
-* [02 · `evosax`, all algorithms](https://colab.research.google.com/github/ihsan31415/origami-engine-mjx/blob/957cc57/notebook_examples/02_evosax_all_algorithms.ipynb)
-* [03 · RL: Gymnasium + pure JAX](https://colab.research.google.com/github/ihsan31415/origami-engine-mjx/blob/957cc57/notebook_examples/03_rl_gymnasium.ipynb)
-* [04 · AI / LLM agent loop](https://colab.research.google.com/github/ihsan31415/origami-engine-mjx/blob/957cc57/notebook_examples/04_llm_agent_loop.ipynb)
-* [05 · `evosax`, switch algorithms](https://colab.research.google.com/github/ihsan31415/origami-engine-mjx/blob/957cc57/notebook_examples/05_evosax_switchable.ipynb)
+* [01 · Black-box quickstart](https://colab.research.google.com/github/ihsan31415/origami-engine-mjx/blob/main/notebook_examples/01_black_box_quickstart.ipynb)
+* [02 · `evosax`, all algorithms](https://colab.research.google.com/github/ihsan31415/origami-engine-mjx/blob/main/notebook_examples/02_evosax_all_algorithms.ipynb)
+* [03 · RL: Gymnasium + pure JAX](https://colab.research.google.com/github/ihsan31415/origami-engine-mjx/blob/main/notebook_examples/03_rl_gymnasium.ipynb)
+* [04 · AI / LLM agent loop](https://colab.research.google.com/github/ihsan31415/origami-engine-mjx/blob/main/notebook_examples/04_llm_agent_loop.ipynb)
+* [05 · `evosax`, switch algorithms](https://colab.research.google.com/github/ihsan31415/origami-engine-mjx/blob/main/notebook_examples/05_evosax_switchable.ipynb)
+* [06 · `EvoTF_ES` — all creases, all angles [GPU]](https://colab.research.google.com/github/ihsan31415/origami-engine-mjx/blob/main/notebook_examples/06_evotf_warp_all_creases.ipynb)
 
 Each notebook starts with its own install cell, which installs the package
 straight from the main repository
@@ -37,11 +39,12 @@ straight from the main repository
 notebook keeps working as the project moves on:
 
 ```python
-%pip install -q "origami-engine-mjx[jax] @ git+https://github.com/ihsan31415/origami-engine-mjx.git@957cc57"
+%pip install -q "origami-engine-mjx[jax] @ git+https://github.com/ihsan31415/origami-engine-mjx.git@main"
 ```
 
 Notebook 03 additionally installs `[rl]`; notebooks 02 and 05 install `evosax`.
-Replace `@957cc57` with `@main` to track the latest code.
+Notebook 06 installs the released `origami-engine-mjx[warp,opt]==1.3.0` from
+PyPI instead of git.
 
 ## CPU vs GPU: what is actually fast
 
@@ -128,4 +131,3 @@ harmless `Failed to import warp` line on machines without `warp-lang`.
 * [Integrations overview](../docs/INTEGRATIONS.md) — what is and is not in the library
 * [Colab + GPU notes](../docs/COLAB_GPU.md) — runtime and install guidance
 
-* [06 · `EvoTF_ES` — all creases, all angles (Warp GPU)](06_evotf_warp_all_creases.ipynb) — batched Warp simulation on T4; optimises hinge angles **and** every crease vertex with an 85/15 movement+fold score.
